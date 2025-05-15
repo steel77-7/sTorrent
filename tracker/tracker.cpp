@@ -5,18 +5,24 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <queue>
+#include <map>
+#define MAX_CONNECTIONS 10
 #define PORT 6969
 
 using namespace std;
 
-/* class peer
+class Peer
 {
 private:
-    struct sockaddr_in address;
+    sockaddr_in client_addr;
+    socklen_t client_addr_len;
 
 public:
-    Server()
+    int client_fd;
+    Peer(int server_fd)
     {
+        client_addr_len = sizeof(client_addr);
+        client_fd = accept(server_fd, (sockaddr *)&client_addr, &client_addr_len);
     }
 
     void sendRequest()
@@ -25,11 +31,13 @@ public:
 
     void ConnectionHandler()
     {
+        // the magic happens here
     }
-}; */
+};
 
 int main()
 {
+    cout << "hello";
     // socket is created here but not alloted.....
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1)
@@ -44,9 +52,9 @@ int main()
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    if (bind(server_fd, (sockaddr *)&address, sizeof(address) == -1))
+    if (bind(server_fd, (sockaddr *)&address, sizeof(address)) == -1)
     {
-        std::cerr << "socket failed to bind...... aborting" << server_fd<<"\n";
+        std::cerr << "socket failed to bind...... aborting" << server_fd << "\n";
 
         return 1;
     }
@@ -59,22 +67,25 @@ int main()
 
     std::cout << "Server is listening and waiting for connection";
 
-    // to store the individual connections(ids)
-    queue<int> connections;
-
+    // to store the individual connections(ids)...later it will be transformed into a map
+    std::map<int, Peer> connections;
     // till now a socket is oppened that will listent to connections
     while (1)
     {
         // now to connect the peers
-        sockaddr_in client_address;
-        socklen_t client_address_len = sizeof(client_address);
-        int client_fd = accept(server_fd, (sockaddr *)&client_address, &client_address_len);
-        if (client_fd == -1)
+        // the peer id will be managed afterwards
+        int next_connection = 0 ;
+        Peer p(server_fd);
+        if (p.client_fd == -1)
         {
             std::cerr << "next";
             continue;
         }
-
+        if(connections.size()>= MAX_CONNECTIONS){ 
+            std::cout<<"Max connection of "<<MAX_CONNECTIONS<<"recahed\n";
+        }
+        // psuhing the connection in it
+        connections.insert({p.client_fd, p});
 
         std::cout << "HTTP request received" << std::endl;
         // Send the HTTP response
@@ -87,8 +98,8 @@ int main()
                                                    "\r\n" +
             response_body;
 
-            write(client_fd , response.c_str(),response.size() );
-            close(client_fd);
-        }
+        write(p.client_fd, response.c_str(), response.size());
+        close(p.client_fd);
+    }
     return 0;
 }
