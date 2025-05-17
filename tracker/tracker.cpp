@@ -4,7 +4,6 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <queue>
 #include <map>
 #include <thread>
 #define MAX_CONNECTIONS 10

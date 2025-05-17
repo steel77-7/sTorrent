@@ -1,22 +1,5 @@
-#include<iostream>
-#include<string>
-#include<memory>
-#include<variant>
-#include<fstream>
-#include<cctype>
-#include<map>
-#include<iterator>
-#include<vector>
-struct Bencodingobject;
-using Bencodingptr=std::shared_ptr<Bencodingobject>;
-struct Bencodingobject:public std::variant<
- int,
- std::string,
- std::vector<Bencodingptr>,
- std::map<std::string,Bencodingptr>>
-{
-    using variant::variant;
-};
+#include "../lib/parser.h"
+
 class Bencodingparser
 {
     private:
