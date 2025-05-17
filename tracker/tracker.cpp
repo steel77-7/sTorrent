@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <queue>
 #include <map>
+#include <thread>
 #define MAX_CONNECTIONS 10
 #define PORT 6969
 
@@ -14,24 +15,49 @@ using namespace std;
 class Peer
 {
 private:
-    sockaddr_in client_addr;
-    socklen_t client_addr_len;
+    //  sockaddr client_addr;
+    //  socklen_t client_addr_len;
+    char buffer[1024];
 
 public:
-    int client_fd;
-    Peer(int server_fd)
+    int client_socket;
+    Peer(int client_socket, socklen_t client_addr_len)
     {
-        client_addr_len = sizeof(client_addr);
-        client_fd = accept(server_fd, (sockaddr *)&client_addr, &client_addr_len);
+        this->client_socket = client_socket;
+        // client_addr_len = sizeof(client_addr);
+        // client_fd = accept(server_fd, client_addr, &client_addr_len);
     }
 
-    void sendRequest()
+    void sendMessage()
     {
+        std::cout << "HTTP request received" << std::endl;
+        // Send the HTTP response
+        std::string response_body = "<html><body><h1>Hello, World!</h1></body></html>";
+        std::string response =
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/html\r\n"
+            "Content-Length: " +
+            std::to_string(response_body.size()) + "\r\n"
+                                                   "\r\n" +
+            response_body;
+
+        write(client_socket, response.c_str(), response.size());
     }
 
     void ConnectionHandler()
     {
-        // the magic happens here
+        sendMessage();
+        while (int rec = recv(client_socket, &buffer, sizeof(buffer), 0))
+        {
+            cout << "Curr thread : " << this_thread::get_id() << endl;
+            cout<< rec<< endl;
+
+          //  int res = send(client_socket , "hello" , 0, MSG_NOSIGNAL);
+          //  if( res<0){ 
+          //      cout<<"client disconnected "<< endl;
+          //  }
+        }
+        close(client_socket);
     }
 };
 
@@ -65,41 +91,33 @@ int main()
         return 1;
     }
 
-    std::cout << "Server is listening and waiting for connection";
+    std::cout << "Server is listening and waiting for connection\n";
 
     // to store the individual connections(ids)...later it will be transformed into a map
     std::map<int, Peer> connections;
     // till now a socket is oppened that will listent to connections
+    int next_connection = 0;
     while (1)
     {
-        // now to connect the peers
-        // the peer id will be managed afterwards
-        int next_connection = 0 ;
-        Peer p(server_fd);
-        if (p.client_fd == -1)
+
+        if (connections.size() >= MAX_CONNECTIONS)
         {
-            std::cerr << "next";
+            std::cout << "Max connection of " << MAX_CONNECTIONS << "recahed\n";
+        }
+
+        sockaddr_in client_addr;
+        socklen_t client_len = sizeof(client_addr);
+        int client_socket = accept(server_fd, (sockaddr *)&client_addr, &client_len);
+
+        Peer p(client_socket, client_len);
+
+        if (p.client_socket < 0)
+        {
+            std::cerr << "next\n";
             continue;
         }
-        if(connections.size()>= MAX_CONNECTIONS){ 
-            std::cout<<"Max connection of "<<MAX_CONNECTIONS<<"recahed\n";
-        }
-        // psuhing the connection in it
-        connections.insert({p.client_fd, p});
-
-        std::cout << "HTTP request received" << std::endl;
-        // Send the HTTP response
-        std::string response_body = "<html><body><h1>Hello, World!</h1></body></html>";
-        std::string response =
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/html\r\n"
-            "Content-Length: " +
-            std::to_string(response_body.size()) + "\r\n"
-                                                   "\r\n" +
-            response_body;
-
-        write(p.client_fd, response.c_str(), response.size());
-        close(p.client_fd);
+        thread t(&Peer::ConnectionHandler, p);
+        t.detach();
     }
     return 0;
 }
