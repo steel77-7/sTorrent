@@ -31,6 +31,12 @@ class Bencodingparser
         std::string realstring=data.substr(size+1,slength);
         index=size+slength+1;
         return realstring;
+      } std::string decodestring(){
+        int size=data.find(':',index);
+        int slength=std::stoi(data.substr(index,size-index));
+        std::string realstring=data.substr(size+1,slength);
+        index=size+slength+1;
+        return realstring;
       }
        std::vector<Bencodingptr> decodelist(){
         ++index;
