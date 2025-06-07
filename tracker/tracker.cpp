@@ -1,69 +1,90 @@
-#include <iostream>
-#include <cstring>
-#include <string>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <map>
-#include <thread>
-#define MAX_CONNECTIONS 10
-#define PORT 6969
-
+#include "../lib/tracker.h"
+#include "../tracker/JoinHandler.cpp"
+#include "../lib/json.hpp"
 using namespace std;
+using json = nlohmann::json;
+string self_info_hash = "the_super_secret_hash";
+int peer_id_gen = 0;
 
-class Peer
+void to_json(json &j, peerInfo p)
 {
-private:
-    //  sockaddr client_addr;
-    //  socklen_t client_addr_len;
-    char buffer[1024];
+    j = json{{"info_hash", p.info_hash}, {"ip", p.ip}, {"peer_id", p.peer_id}};
+}
 
-public:
-    int client_socket;
-    Peer(int client_socket, socklen_t client_addr_len)
+Peer::Peer(int client_socket, socklen_t client_addr_len, sockaddr_in *client_addr)
+{
+    this->client_socket = client_socket;
+    this->client_addr = client_addr;
+}
+
+void Peer::sendMessage() // to be modiefied later
+{
+    /*  std::cout << "HTTP request received" << std::endl;
+     // Send the HTTP response
+     std::string response_body = "<html><body><h1>Hello, World!</h1></body></html>";
+     std::string response =
+         "HTTP/1.1 200 OK\r\n"
+         "Content-Type: text/html\r\n"
+         "Content-Length: " +
+         std::to_string(response_body.size()) + "\r\n"
+                                                "\r\n" +
+         response_body; */
+    std::cout << "HTTP request received" << std::endl;
+    string text_res = "yes here i am " + peer_id_gen;
+    //  write(client_socket, response.c_str(), response.size());
+    write(client_socket, text_res.c_str(), text_res.size());
+
+    // send(client_socket, text_res.c_str(), strlen(text_res.c_str())+1, 0);
+}
+
+void Peer::sendMessage(string message)
+{
+    write(client_socket, message.c_str(), message.size());
+}
+
+void Peer::ConnectionHanlder()
+{
+   // sendMessage();
+    //  peer_connection(client_socket,client_addr);
+    int rec = recv(client_socket, &buffer, sizeof(buffer), 0);
+    while (rec > 0)
     {
-        this->client_socket = client_socket;
-        // client_addr_len = sizeof(client_addr);
-        // client_fd = accept(server_fd, client_addr, &client_addr_len);
+        cout << "Curr thread : " << this_thread::get_id() << endl;
+        cout << rec << endl;
     }
+    cout << "closed" << endl;
+    close(client_socket);
+}
 
-    void sendMessage()
+// bassic framework set
+// yaha pe emit handle hua but baaki peers ko bhejna bhi hai
+void update_peer_list(peerInfo info)
+{
+    // json j;
+    json arr_j = json ::array();
+    cout << "good boy" << endl;
+    peerList.push_back(info); // list is updated no to send it
+
+    for (auto &p : peerList)
     {
-        std::cout << "HTTP request received" << std::endl;
-        // Send the HTTP response
-        std::string response_body = "<html><body><h1>Hello, World!</h1></body></html>";
-        std::string response =
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/html\r\n"
-            "Content-Length: " +
-            std::to_string(response_body.size()) + "\r\n"
-                                                   "\r\n" +
-            response_body;
-
-        write(client_socket, response.c_str(), response.size());
+        // pushing the peeringo in to the json array
+        arr_j.push_back(json{{"info_hash", p.info_hash}, {"ip", p.ip}, {"peer_id", p.peer_id}});
+        cout << p.info_hash << endl
+             << p.ip << endl
+             << p.peer_id << endl;
     }
-
-    void ConnectionHandler()
+    string updated_list = arr_j.dump();
+    for (auto &[id, peer] : connections)
     {
-        sendMessage();
-        while (int rec = recv(client_socket, &buffer, sizeof(buffer), 0))
-        {
-            cout << "Curr thread : " << this_thread::get_id() << endl;
-            cout<< rec<< endl;
 
-          //  int res = send(client_socket , "hello" , 0, MSG_NOSIGNAL);
-          //  if( res<0){ 
-          //      cout<<"client disconnected "<< endl;
-          //  }
-        }
-        close(client_socket);
+        peer.sendMessage(updated_list); // for now this works
     }
-};
+}
 
 int main()
 {
-    cout << "hello";
-    // socket is created here but not alloted.....
+    Event event;
+    int eventId = event.subscribe(update_peer_list);
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1)
     {
@@ -93,12 +114,11 @@ int main()
     std::cout << "Server is listening and waiting for connection\n";
 
     // to store the individual connections(ids)...later it will be transformed into a map
-    std::map<int, Peer> connections;
     // till now a socket is oppened that will listent to connections
     int next_connection = 0;
+
     while (1)
     {
-
         if (connections.size() >= MAX_CONNECTIONS)
         {
             std::cout << "Max connection of " << MAX_CONNECTIONS << "recahed\n";
@@ -108,15 +128,22 @@ int main()
         socklen_t client_len = sizeof(client_addr);
         int client_socket = accept(server_fd, (sockaddr *)&client_addr, &client_len);
 
-        Peer p(client_socket, client_len);
-
+        Peer p(client_socket, client_len, &client_addr);
+        connections.insert({peer_id_gen++, p});
+        char ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(client_addr.sin_addr), ip, INET_ADDRSTRLEN);
+        int port = ntohs(client_addr.sin_port);
+        // doing the emitting here
+        event.emit((peerInfo){ip, self_info_hash, "wetye46b45b"});
         if (p.client_socket < 0)
         {
             std::cerr << "next\n";
             continue;
         }
-        thread t(&Peer::ConnectionHandler, p);
+        thread t(&Peer::ConnectionHanlder, p);
         t.detach();
     }
+    close(server_fd);
+    event.unsubscribe(eventId);
     return 0;
 }

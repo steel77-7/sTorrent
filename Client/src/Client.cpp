@@ -4,22 +4,63 @@
 #include <unistd.h>
 #include <cstring>
 #include <thread>
-
+#include <string.h>
+#include <cstdlib>
+#include "../../lib/json.hpp"
+using json = nlohmann::json;
+// #include "../../lib/nlohmann/json.hpp"
 #define PORT 6969
-#define SERVER_EP "127.0.0.1:6969"
+#define SERVER_EP "127.0.0.1"
 #define MAX_CONNECTIONS 10
-
+// transfer the list from client to server and then server to the client
 using namespace std;
 
 struct peerInfo
 {
+    string ip;
     string info_hash;
     string peer_id;
-    int port;
-    string event;
+    //  int port;
+    //  string event;
 };
 
-// one will try to connect ...and the other will accept
+
+//nlohmann fucntion
+void from_json(const json &j, peerInfo &p)
+{
+    j.at("ip").get_to(p.ip);
+    j.at("peer_id").get_to(p.peer_id);
+    j.at("info_hash").get_to(p.info_hash);
+}
+
+string self_info_hash = "the_super_secret_hash";
+
+// one will try to connect...and the other will accept
+
+void read_message(int self_soc, int server_soc)
+{
+    char buffer[1024];
+    json j;
+    while (1)
+    {
+
+        int val_read = read(self_soc, buffer, sizeof(buffer));
+        cout << 1 << endl;
+        if (val_read < 0)
+        {
+            cerr << "message ws empty" << endl;
+            return;
+        }
+
+        string msg(buffer, val_read );
+        cout << "message :" << msg << endl;
+        j = json::parse(msg);
+        vector<peerInfo> peerList = j.get<vector<peerInfo>>();
+        // string text_res = "yes here i am ";
+        //  write(client_socket, response.c_str(), response.size());
+        // send(server_soc, text_res.c_str(), strlen(text_res.c_str()) + 1, 0);
+    }
+}
 
 void connect_to_peer(int soc, string ip)
 {
@@ -35,62 +76,91 @@ void connect_to_peer(int soc, string ip)
     }
 }
 
-void accept_connection()
+bool hand_shake(string peer_info_hash)
 {
-    char buffer[1024]; 
-    int peer_soc ;
-    while (int rec = recv(peer_soc , &buffer , sizeof(buffer),0))
-    {
-        cout<<"curr thread" << this_thread::get_id()<<endl;
-    }
-    close (peer_soc);
+    return self_info_hash.compare(peer_info_hash);
 }
 
-void peer_handler(int self_soc, int peer_soc, socklen_t peer_len)
+void accept_connection(int peer_soc)
+{
+    char buffer[1024];
+    // int peer_soc;
+    while (int rec = recv(peer_soc, &buffer, sizeof(buffer), 0))
+    {
+        // hand_shake()
+        // here the info hash will be recieved and then it will eb checked with the available info hash
+        cout << "curr thread" << this_thread::get_id() << endl;
+    }
+    close(peer_soc);
+}
+
+/* void peer_handler(int self_soc, int peer_soc, socklen_t peer_len)
 {
     while (1)
     {
+
     }
-}
+
+} */
 
 int main()
 {
+    char buffer[1024];
     sockaddr_in address{};
     socklen_t address_len = sizeof(address);
     std::memset(&address, 0, sizeof(address));
     // initializing socket variables
     address.sin_family = AF_INET;
-    address.sin_port = htons(PORT);
+    address.sin_port = htons((int)PORT);
     // address.sin_addr.s_addr = inet_addr(SERVER_EP);
-    if (inet_pton(AF_INET, "127.0.0.1", &address.sin_addr) <= 0)
+    if (inet_pton(AF_INET, SERVER_EP, &address.sin_addr) <= 0)
     {
-        printf(
-            "\nInvalid address/ Address not supported \n");
+        cerr << "Invalid address/ Address not supported" << endl;
         return -1;
     }
     int soc = socket(AF_INET, SOCK_STREAM, 0);
-    int n;
-    if (n = connect(soc, (sockaddr *)&address, address_len) == -1)
+    if (soc < 0)
     {
-        std::cerr << "Client failed to connect to the server : " << SERVER_EP << ":" << PORT << std::endl;
-        cout << n;
+        cerr << "Socket could not be created...." << endl;
+        return 2;
+    }
+    // binding the socket to the port
+    /*  if (int r = bind(soc, (sockaddr *)&address, sizeof(address)) < 0)
+     {
+         cerr << "socket failed to bind" << r << endl;
+         return 1;
+     } */
+    // listening to the connections
+    /*   int l = listen(soc, MAX_CONNECTIONS) ;
+      if (l< 0)
+      {
+          cerr << "failed to listen to hosts" << l << endl;
+          return 1;
+      } */
+    // conneting ot the server
+    int n = connect(soc, (sockaddr *)&address, address_len);
+    if (n < 0)
+    {
+        std::cerr << "Client failed to connect to the server : " << SERVER_EP << ":" << std::endl;
+        cout << n << endl;
         return 1;
     }
 
-    if (bind(soc, (sockaddr *)&address, sizeof(address)) < 0)
-    {
-        cerr << "socket failed to bind" << endl;
-        return 1;
-    }
-    if (listen(soc, MAX_CONNECTIONS) < 0)
-    {
-        cerr << "failed to listen to hosts";
-        return 1;
-    }
-    while (1)
-    {
-        // the code for individual peer
-    }
+    read_message(soc, n);
+
+    /////////////////***************** */
+    // this can be assigned to someother thread
+    /*   while (1)
+      {
+          sockaddr_in peer_addr;
+          memset(&peer_addr, 0, sizeof(peer_addr));
+          socklen_t peer_len = sizeof(peer_addr);
+          int peer_soc = accept(soc, (sockaddr *)&peer_addr, (socklen_t *)&peer_len);
+          accept_connection(peer_soc);
+
+          // thread t (accept_connection , peer_soc);
+          //  the code for individual peer
+      } */
     /*   std::string message = "holla amigo";
       while (1)
           send(soc, message.c_str(), strlen(message.c_str()), 0); */
