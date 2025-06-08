@@ -1,8 +1,7 @@
 #include "../lib/tracker.h"
-#include "../tracker/JoinHandler.cpp"
-#include "../lib/json.hpp"
-using namespace std;
+#include "JoinHandler.cpp"
 using json = nlohmann::json;
+
 string self_info_hash = "the_super_secret_hash";
 int peer_id_gen = 0;
 
@@ -11,10 +10,42 @@ void to_json(json &j, peerInfo p)
     j = json{{"info_hash", p.info_hash}, {"ip", p.ip}, {"peer_id", p.peer_id}};
 }
 
-Peer::Peer(int client_socket, socklen_t client_addr_len, sockaddr_in *client_addr)
+void from_json(const json &j, Message &m)
+{
+    j.at("success").get_to(m.success);
+    j.at("type").get_to(m.type);
+    j.at("message").get_to(m.message);
+}
+
+void from_json(const json &j, peerInfo &p)
+{
+    j.at("info_hash").get_to(p.info_hash);
+    j.at("ip").get_to(p.ip);
+    j.at("peer_id").get_to(p.peer_id);
+}
+
+Peer::Peer(int client_socket, socklen_t client_addr_len, sockaddr_in *client_addr, Event *e)
 {
     this->client_socket = client_socket;
     this->client_addr = client_addr;
+    this->e = e;
+}
+
+MessageType Peer::peerMessageSerializer(string s)
+{
+    cout << "peer message seriLIER" << endl;
+    json j = json::parse(s);
+    json mess;
+    if (j["success"] && j["type"] == "join")
+    {
+        string str_mess = j["message"];
+        json mess = json::parse(str_mess);
+        // yaha pe event emit krna hai
+        e->emit(mess.get<peerInfo>());
+        // retrun pta ni kyu krwa raha
+        return mess.get<peerInfo>();
+    }
+    return j.get<Message>();
 }
 
 void Peer::sendMessage() // to be modiefied later
@@ -37,20 +68,41 @@ void Peer::sendMessage() // to be modiefied later
     // send(client_socket, text_res.c_str(), strlen(text_res.c_str())+1, 0);
 }
 
-void Peer::sendMessage(string message)
+void Peer::sendMessage(Message message)
 {
-    write(client_socket, message.c_str(), message.size());
+    json j = json{
+        {"success", message.success},
+        {"type", message.type},
+        {"message", message.message},
+    };
+    string tbs = j.dump();
+    write(client_socket, tbs.c_str(), tbs.size());
+}
+
+string Peer::recieveMessage()
+{
+    int val_read = read(client_socket, buffer, sizeof(buffer));
+    if (val_read < 0)
+        return "";
+    string msg(buffer, val_read);
+    cout << "message:  " << msg << endl;
+    return msg;
 }
 
 void Peer::ConnectionHanlder()
 {
-   // sendMessage();
-    //  peer_connection(client_socket,client_addr);
-    int rec = recv(client_socket, &buffer, sizeof(buffer), 0);
-    while (rec > 0)
+    while (true)
     {
+        string m = recieveMessage();
+        if (m=="")
+        {
+            cout << "message empty" << endl;
+            continue;
+        }
+        peerMessageSerializer(m);
+        cout << "inside the connection loop\n"
+             << endl;
         cout << "Curr thread : " << this_thread::get_id() << endl;
-        cout << rec << endl;
     }
     cout << "closed" << endl;
     close(client_socket);
@@ -58,11 +110,12 @@ void Peer::ConnectionHanlder()
 
 // bassic framework set
 // yaha pe emit handle hua but baaki peers ko bhejna bhi hai
+json arr_j = json ::array();
+
 void update_peer_list(peerInfo info)
 {
     // json j;
-    json arr_j = json ::array();
-    cout << "good boy" << endl;
+    cout << "update per list" << endl;
     peerList.push_back(info); // list is updated no to send it
 
     for (auto &p : peerList)
@@ -74,10 +127,12 @@ void update_peer_list(peerInfo info)
              << p.peer_id << endl;
     }
     string updated_list = arr_j.dump();
+    cout << updated_list << endl;
+    cout << "updation" << endl;
     for (auto &[id, peer] : connections)
     {
 
-        peer.sendMessage(updated_list); // for now this works
+        peer.sendMessage(Message{true, "join", updated_list}); // for now this works
     }
 }
 
@@ -128,13 +183,12 @@ int main()
         socklen_t client_len = sizeof(client_addr);
         int client_socket = accept(server_fd, (sockaddr *)&client_addr, &client_len);
 
-        Peer p(client_socket, client_len, &client_addr);
+        Peer p(client_socket, client_len, &client_addr, &event);
         connections.insert({peer_id_gen++, p});
         char ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(client_addr.sin_addr), ip, INET_ADDRSTRLEN);
         int port = ntohs(client_addr.sin_port);
         // doing the emitting here
-        event.emit((peerInfo){ip, self_info_hash, "wetye46b45b"});
         if (p.client_socket < 0)
         {
             std::cerr << "next\n";

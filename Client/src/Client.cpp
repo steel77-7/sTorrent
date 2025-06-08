@@ -7,6 +7,7 @@
 #include <string.h>
 #include <cstdlib>
 #include "../../lib/json.hpp"
+#include "../Utils/Peer_id_gen.cpp"
 using json = nlohmann::json;
 // #include "../../lib/nlohmann/json.hpp"
 #define PORT 6969
@@ -24,8 +25,14 @@ struct peerInfo
     //  string event;
 };
 
-
-//nlohmann fucntion
+struct Message
+{
+    bool success;
+    string type;
+    string message;
+};
+vector<peerInfo> peerList;
+// nlohmann fucntion
 void from_json(const json &j, peerInfo &p)
 {
     j.at("ip").get_to(p.ip);
@@ -33,33 +40,68 @@ void from_json(const json &j, peerInfo &p)
     j.at("info_hash").get_to(p.info_hash);
 }
 
+void to_json(json &j, peerInfo p)
+{
+    j = json{{"info_hash", p.info_hash},
+             {"ip", p.ip},
+             {"peer_id", p.peer_id}};
+}
+void to_json(json &j, Message &m)
+{
+    j = json{
+        {"success", m.success},
+        {"type", m.type},
+        {"message", m.message},
+    };
+}
+
 string self_info_hash = "the_super_secret_hash";
 
 // one will try to connect...and the other will accept
 
+void messageSerializer(string s)
+{
+    json j = json::parse(s);
+    if (j["type"] == "join")
+    {
+        string str_mess = j["message"];
+        cout << str_mess << endl;
+        json mess = json::parse(str_mess);
+        vector<peerInfo> peerList = mess.get<vector<peerInfo>>();
+    }
+}
+
 void read_message(int self_soc, int server_soc)
 {
+    cout << "read messgae" << endl;
     char buffer[1024];
     json j;
     while (1)
     {
-
-        int val_read = read(self_soc, buffer, sizeof(buffer));
         cout << 1 << endl;
+        int val_read = read(self_soc, buffer, sizeof(buffer));
         if (val_read < 0)
         {
             cerr << "message ws empty" << endl;
             return;
         }
-
-        string msg(buffer, val_read );
+        string msg(buffer, val_read);
         cout << "message :" << msg << endl;
-        j = json::parse(msg);
-        vector<peerInfo> peerList = j.get<vector<peerInfo>>();
-        // string text_res = "yes here i am ";
-        //  write(client_socket, response.c_str(), response.size());
-        // send(server_soc, text_res.c_str(), strlen(text_res.c_str()) + 1, 0);
+      //  j = json::parse(msg);
+       // vector<peerInfo> peerList = j.get<vector<peerInfo>>();
+       messageSerializer(msg);
     }
+}
+
+void sendMessage(int s_socket, Message message)
+{
+    json j = json{
+        {"success", message.success},
+        {"type", message.type},
+        {"message", message.message}};
+    string tbs = j.dump();
+    cout << "send message" <<tbs<< endl;
+    write(s_socket, tbs.c_str(), tbs.size());
 }
 
 void connect_to_peer(int soc, string ip)
@@ -94,15 +136,6 @@ void accept_connection(int peer_soc)
     close(peer_soc);
 }
 
-/* void peer_handler(int self_soc, int peer_soc, socklen_t peer_len)
-{
-    while (1)
-    {
-
-    }
-
-} */
-
 int main()
 {
     char buffer[1024];
@@ -125,18 +158,7 @@ int main()
         return 2;
     }
     // binding the socket to the port
-    /*  if (int r = bind(soc, (sockaddr *)&address, sizeof(address)) < 0)
-     {
-         cerr << "socket failed to bind" << r << endl;
-         return 1;
-     } */
-    // listening to the connections
-    /*   int l = listen(soc, MAX_CONNECTIONS) ;
-      if (l< 0)
-      {
-          cerr << "failed to listen to hosts" << l << endl;
-          return 1;
-      } */
+
     // conneting ot the server
     int n = connect(soc, (sockaddr *)&address, address_len);
     if (n < 0)
@@ -146,24 +168,19 @@ int main()
         return 1;
     }
 
+    char ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(address.sin_addr), ip, INET_ADDRSTRLEN);
+    int port = ntohs(address.sin_port);
+    json j;
+    j = json{{"info_hash", self_info_hash}, {"ip", ip}, {"peer_id", peer_id_gen()}};
+    string message = j.dump();
+
+    sendMessage(soc, Message{true, "join", message});
     read_message(soc, n);
 
     /////////////////***************** */
     // this can be assigned to someother thread
-    /*   while (1)
-      {
-          sockaddr_in peer_addr;
-          memset(&peer_addr, 0, sizeof(peer_addr));
-          socklen_t peer_len = sizeof(peer_addr);
-          int peer_soc = accept(soc, (sockaddr *)&peer_addr, (socklen_t *)&peer_len);
-          accept_connection(peer_soc);
 
-          // thread t (accept_connection , peer_soc);
-          //  the code for individual peer
-      } */
-    /*   std::string message = "holla amigo";
-      while (1)
-          send(soc, message.c_str(), strlen(message.c_str()), 0); */
     close(soc);
     return 0;
 }

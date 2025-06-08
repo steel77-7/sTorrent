@@ -1,0 +1,36 @@
+#ifndef EVENT_CLASS
+#define EVENT_CLASS
+#include <functional>
+#include <vector>
+#include <unordered_map>
+#include <string>
+#include <iostream>
+#include "json.hpp"
+
+using namespace std;
+struct peerInfo
+{
+    string ip;
+    string info_hash;
+    string peer_id;
+    // int port;
+    // string event;
+};
+
+class Event
+{
+public:
+    using Listener = function<void(peerInfo)>;
+    using ListenerID = int;
+
+    ListenerID subscribe(Listener listener);
+    void unsubscribe(ListenerID id);
+
+    void emit(peerInfo data);
+
+private:
+    unordered_map<ListenerID, Listener> listeners;
+    ListenerID nextId = 0;
+};
+
+#endif

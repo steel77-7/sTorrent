@@ -1,37 +1,28 @@
-#include "../lib/tracker.h"
+#include "../lib/Event.h"
 using namespace std;
+using Listener = function<void(peerInfo)>;
+using ListenerID = int;
 
 // should have the list of the member s passed to it
-// just make it work first then care about the optimisation
-class Event
+
+ListenerID Event::subscribe(Listener listener)
 {
-public:
-    using Listener = function<void(peerInfo)>;
-    using ListenerID = int;
-    ListenerID subscribe(Listener listener)
-    {
-        int id = nextId++;
-        listeners[id] = listener;
-        return id;
-    }
+    int id = nextId++;
+    listeners[id] = listener;
+    return id;
+}
 
-    void unsubscribe(ListenerID id)
-    {
-        listeners.erase(id);
-    }
+void Event ::unsubscribe(ListenerID id)
+{
+    listeners.erase(id);
+}
 
-    // pass the list of the peers as well here
-    void emit(auto data)
+void Event::emit(peerInfo data)
+{
+   cout << "someone joined" << endl;
+    // do something here with the soockets recieved
+    for (const auto &[id, listener] : listeners)
     {
-        cout<<"someone joined"<<endl;
-        // do something here with the soockets recieved
-        for (const auto &[id, listener] : listeners)
-        {
-            listener(data); // usi listerner ke pass jaega data
-        }
+        listener(data); // usi listerner ke pass jaega data
     }
-
-private:
-    unordered_map<ListenerID, Listener> listeners;
-    ListenerID nextId = 0;
-};
+}

@@ -7,37 +7,43 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <map>
 #include <thread>
-#include <unordered_map>
-#include <functional>
+#include <variant>
+#include "Event.h"
+// #include "../tracker/JoinHandler.cpp"
 
 #define MAX_CONNECTIONS 10
 #define PORT 6969
 using namespace std;
 
-struct peerInfo
+using namespace std;
+
+
+struct Message
 {
-    string ip;
-    string info_hash;
-    string peer_id;
-    // int port;
-    // string event;
+    bool success;
+    string type;
+    string message;
 };
+
+using MessageType = variant<peerInfo, Message>;
 
 class Peer
 {
 private:
     char buffer[1024];
     sockaddr_in *client_addr;
+    Event* e;
 
 public:
     int client_socket;
 
-    Peer(int client_socket, socklen_t client_addr_len, sockaddr_in *client_addr);
+    Peer(int client_socket, socklen_t client_addr_len, sockaddr_in *client_addr, Event *e);
     void sendMessage();
-    void sendMessage(string message);
+    void sendMessage(Message message);
     void ConnectionHanlder();
+    string recieveMessage();
+    MessageType peerMessageSerializer(string s);
 };
 
 vector<peerInfo> peerList;
