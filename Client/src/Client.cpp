@@ -8,11 +8,15 @@
 #include <cstdlib>
 #include "../../lib/json.hpp"
 #include "../Utils/Peer_id_gen.cpp"
+#include "../Utils/PeerJoinEventHandler.cpp"
+
 using json = nlohmann::json;
 // #include "../../lib/nlohmann/json.hpp"
 #define PORT 6969
 #define SERVER_EP "127.0.0.1"
 #define MAX_CONNECTIONS 10
+#define MAX_PEER_CONNECTIONS 5 
+
 // transfer the list from client to server and then server to the client
 using namespace std;
 
@@ -87,7 +91,7 @@ void read_message(int self_soc, int server_soc)
         }
         string msg(buffer, val_read);
         cout << "message :" << msg << endl;
-      //  j = json::parse(msg);
+       // j = json::parse(msg);
        // vector<peerInfo> peerList = j.get<vector<peerInfo>>();
        messageSerializer(msg);
     }

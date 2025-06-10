@@ -50,22 +50,10 @@ MessageType Peer::peerMessageSerializer(string s)
 
 void Peer::sendMessage() // to be modiefied later
 {
-    /*  std::cout << "HTTP request received" << std::endl;
-     // Send the HTTP response
-     std::string response_body = "<html><body><h1>Hello, World!</h1></body></html>";
-     std::string response =
-         "HTTP/1.1 200 OK\r\n"
-         "Content-Type: text/html\r\n"
-         "Content-Length: " +
-         std::to_string(response_body.size()) + "\r\n"
-                                                "\r\n" +
-         response_body; */
     std::cout << "HTTP request received" << std::endl;
     string text_res = "yes here i am " + peer_id_gen;
-    //  write(client_socket, response.c_str(), response.size());
     write(client_socket, text_res.c_str(), text_res.size());
 
-    // send(client_socket, text_res.c_str(), strlen(text_res.c_str())+1, 0);
 }
 
 void Peer::sendMessage(Message message)
