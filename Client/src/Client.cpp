@@ -9,13 +9,16 @@
 #include "../../lib/json.hpp"
 #include "../Utils/Peer_id_gen.cpp"
 #include "../Utils/PeerJoinEventHandler.cpp"
+#include "../Utils/Peerjoin.cpp"
+
 
 using json = nlohmann::json;
 // #include "../../lib/nlohmann/json.hpp"
 #define PORT 6969
+#define SELF_PORT
 #define SERVER_EP "127.0.0.1"
 #define MAX_CONNECTIONS 10
-#define MAX_PEER_CONNECTIONS 5 
+#define MAX_PEER_CONNECTIONS 5
 
 // transfer the list from client to server and then server to the client
 using namespace std;
@@ -28,6 +31,7 @@ struct peerInfo
     //  int port;
     //  string event;
 };
+
 
 struct Message
 {
@@ -72,6 +76,8 @@ void messageSerializer(string s)
         cout << str_mess << endl;
         json mess = json::parse(str_mess);
         vector<peerInfo> peerList = mess.get<vector<peerInfo>>();
+
+        //as the list gets updated join with the peer 
     }
 }
 
@@ -91,9 +97,9 @@ void read_message(int self_soc, int server_soc)
         }
         string msg(buffer, val_read);
         cout << "message :" << msg << endl;
-       // j = json::parse(msg);
-       // vector<peerInfo> peerList = j.get<vector<peerInfo>>();
-       messageSerializer(msg);
+        // j = json::parse(msg);
+        // vector<peerInfo> peerList = j.get<vector<peerInfo>>();
+        messageSerializer(msg);
     }
 }
 
@@ -104,7 +110,7 @@ void sendMessage(int s_socket, Message message)
         {"type", message.type},
         {"message", message.message}};
     string tbs = j.dump();
-    cout << "send message" <<tbs<< endl;
+    cout << "send message" << tbs << endl;
     write(s_socket, tbs.c_str(), tbs.size());
 }
 
@@ -113,7 +119,7 @@ void connect_to_peer(int soc, string ip)
     sockaddr_in peer_address;
     peer_address.sin_family = AF_INET;
     // peer_address.sin_port = peerInfo->port;
-    //  peer_address.sin_addr.s_addr= inet_pton(peerInfo->address);
+    // peer_address.sin_addr.s_addr= inet_pton(peerInfo->address);
 
     if (connect(soc, (sockaddr *)&peer_address, (socklen_t)sizeof(peer_address)) < 0)
     {
@@ -140,8 +146,12 @@ void accept_connection(int peer_soc)
     close(peer_soc);
 }
 
+
+
 int main()
 {
+    Event e; 
+    
     char buffer[1024];
     sockaddr_in address{};
     socklen_t address_len = sizeof(address);
@@ -161,7 +171,24 @@ int main()
         cerr << "Socket could not be created...." << endl;
         return 2;
     }
+
+    sockaddr_in self_address;
+    memset(&self_address, 0, sizeof(self_address));
+    self_address.sin_family = AF_INET;
+    self_address.sin_addr.s_addr = INADDR_ANY;
+    self_address.sin_port = htons(PORT);
     // binding the socket to the port
+    if (bind(soc, (sockaddr *)&self_address, sizeof(self_address)) < 0)
+    {
+        cerr << "failed to bind to a port";
+        return 1;
+    }
+
+    if (listen(soc, MAX_PEER_CONNECTIONS) < 0)
+    {
+        cerr << "failed to listen";
+        return 1;
+    }
 
     // conneting ot the server
     int n = connect(soc, (sockaddr *)&address, address_len);

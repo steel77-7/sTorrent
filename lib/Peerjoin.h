@@ -1,35 +1,37 @@
-#ifndef PEER_JOIN_H
-#define PEER_JOIN_H
+#ifndef PEER_MANAGER_H
+#define PEER_MANAGER_H
 #include <iostream>
+#include <unordered_map>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <cstdlib>
 #include <cstring>
 
-using namespace std ; 
-
+using namespace std;
 
 struct peerInfo
 {
     string ip;
     string info_hash;
     string peer_id;
-    //  int port;
+      int port;
     //  string event;
 };
 
+class PeerManager
+{
+private:
+    static int selfsoc;
+    static peerInfo self_info ; 
+    static unordered_map<string, peerInfo> peer_map;
 
-class Peer{ 
-    private : 
-        struct peerInfo info ; 
-        int soc ;
-    public : 
-        Peer(peerInfo i);
-        void accept_connection_request();
-        void send_connection_request() ;
-        void hand_shake(); 
-        void message_handler(); 
-} ;
+public:
+    PeerManager(int soc,peerInfo p );
+    void add_peer(peerInfo peer);
+    void send_request(peerInfo peer) ; 
+    bool hand_shake(string str, string local_hash);
+    void message_handler();
+};
 
 #endif

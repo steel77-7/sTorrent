@@ -170,7 +170,7 @@ int main()
         sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
         int client_socket = accept(server_fd, (sockaddr *)&client_addr, &client_len);
-
+        
         Peer p(client_socket, client_len, &client_addr, &event);
         connections.insert({peer_id_gen++, p});
         char ip[INET_ADDRSTRLEN];
