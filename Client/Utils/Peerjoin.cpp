@@ -1,24 +1,29 @@
 #include "../../lib/Peerjoin.h"
 using namespace std;
 // will have to feed in the self soc to connect to the diff memebers
-PeerManager::PeerManager(int soc,peerInfo  p)
+
+unordered_map<string, peerInfo> PeerManager::peer_map;
+PeerManager::PeerManager(int *soc, peerInfo p)
 {
-    this->selfsoc = soc;
-    this->self_info  = p; 
+    selfsoc = soc;
+    self_info = p;
 }
 
 void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connection request
 {
+    cout << "int hte add peer" << endl;
     char buffer[1024];
     sockaddr_in peer_addr;
     socklen_t peer_len = sizeof(peer_addr);
+    int soc = socket(AF_INET, SOCK_STREAM, 0);
 
-    int peer_soc = accept(selfsoc, (sockaddr *)&peer_addr, &peer_len);
+    int peer_soc = accept(*selfsoc, (sockaddr *)&peer_addr, &peer_len);
     if (peer_soc < 0)
     {
         cerr << "peer cant be connected" << endl;
         return;
     }
+   // send_request(peer);
     int val_read = recv(peer_soc, &buffer, sizeof(buffer), 0);
     if (val_read < 0)
     {
@@ -34,49 +39,68 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
         cout << "handshake failed" << endl;
         return;
     }
+    cout << "handshake successfull" << endl;
 
-    //sending own hash 
+    // sending own hash
     string tbs = "hash";
     write(peer_soc, tbs.c_str(), tbs.size());
-    //agr cu
-    if(self_info.peer_id< peer.peer_id){ 
-        close(peer_soc); 
-        return ; 
+    // agr cu
+    if (self_info.peer_id < peer.peer_id)
+    {
+        close(peer_soc);
+        return;
     }
-    //a lot of bugs but they will be solved
+    // a lot of bugs but they will be solved
     peer_map.insert({peer.peer_id, peer});
+    cout << endl;
+
+    for (const auto &[id, peer] : peer_map)
+    {
+        cout << id << endl;
+    }
+    cout << endl;
 }
 
 void PeerManager::send_request(peerInfo peer)
 {
+    cout << "send request" << endl;
+
     char buffer[1024];
     sockaddr_in peer_addr;
     socklen_t peer_len = sizeof(peer_addr);
     peer_addr.sin_family = AF_INET;
     peer_addr.sin_addr.s_addr = INADDR_ANY;
     peer_addr.sin_port = htons(peer.port);
-    int peer_soc = connect(selfsoc, (sockaddr *)&peer_addr, peer_len);
+    int soc = socket(AF_INET, SOCK_STREAM, 0);
+
+    int peer_soc = connect(soc, (sockaddr *)&peer_addr, peer_len);
+
     if (peer_soc < 0)
     {
         cerr << "couldnt connect the peer" << endl;
         return;
     }
     string tbs = "hash";
-    write(peer_soc, tbs.c_str(), tbs.size()); // if the handshake will fail then close the connection
-    int val_read = recv(peer_soc, &buffer, sizeof(buffer), 0);
+    write(soc, tbs.c_str(), tbs.size()); // if the handshake will fail then close the connection
+    int val_read = recv(soc, &buffer, sizeof(buffer), 0);
+    int count= 0 ; 
+    again:
     if (val_read < 0)
     {
+        count ++;
+        if(count<10) goto again; 
         cerr << "handshake empty" << endl;
         return;
     }
     // or just push all this logic into a message handler
     string msg(buffer, val_read);
-    if (hand_shake(msg, "hash"))
+    if (!hand_shake(msg, "hash"))
     {
         cerr << "handshake failed" << endl;
         close(peer_soc);
         return;
     }
+    cout << "handshake successfull" << endl;
 }
 
 // this iwll be done after the connection is made if false the the connnection will be severed
@@ -91,4 +115,5 @@ bool PeerManager::hand_shake(string str, string local_hash)
 // do do kyu use krne
 void PeerManager::message_handler()
 {
+    // yaha pe mostly piece related loigc lagega
 }

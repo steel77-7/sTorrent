@@ -13,7 +13,7 @@ struct peerInfo
     string ip;
     string info_hash;
     string peer_id;
-    // int port;
+     int port;
     // string event;
 };
 

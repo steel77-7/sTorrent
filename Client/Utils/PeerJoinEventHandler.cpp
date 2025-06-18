@@ -1,6 +1,6 @@
 #include "../../lib/PeerJoinEventHandler.h"
 using ListenerID = int;
-using Listener = function<void()>;
+using Listener = function<void(int)>;
 
 ListenerID Event::subscribe(Listener listener)
 {
@@ -14,7 +14,9 @@ void Event::unsubscribe(ListenerID id)
     listeners.erase(id);
 }
 
-void Event::emit(auto data)
+
+template<>
+void Event::emit(peerInfo data)
 {
 
     for (const auto &[id, listener] : listeners)

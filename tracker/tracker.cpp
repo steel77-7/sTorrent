@@ -7,7 +7,7 @@ int peer_id_gen = 0;
 
 void to_json(json &j, peerInfo p)
 {
-    j = json{{"info_hash", p.info_hash}, {"ip", p.ip}, {"peer_id", p.peer_id}};
+    j = json{{"info_hash", p.info_hash}, {"ip", p.ip}, {"peer_id", p.peer_id}, {"port", p.port}};
 }
 
 void from_json(const json &j, Message &m)
@@ -22,6 +22,7 @@ void from_json(const json &j, peerInfo &p)
     j.at("info_hash").get_to(p.info_hash);
     j.at("ip").get_to(p.ip);
     j.at("peer_id").get_to(p.peer_id);
+    j.at("port").get_to(p.port);
 }
 
 Peer::Peer(int client_socket, socklen_t client_addr_len, sockaddr_in *client_addr, Event *e)
@@ -53,7 +54,6 @@ void Peer::sendMessage() // to be modiefied later
     std::cout << "HTTP request received" << std::endl;
     string text_res = "yes here i am " + peer_id_gen;
     write(client_socket, text_res.c_str(), text_res.size());
-
 }
 
 void Peer::sendMessage(Message message)
@@ -82,7 +82,7 @@ void Peer::ConnectionHanlder()
     while (true)
     {
         string m = recieveMessage();
-        if (m=="")
+        if (m == "")
         {
             cout << "message empty" << endl;
             continue;
@@ -109,7 +109,7 @@ void update_peer_list(peerInfo info)
     for (auto &p : peerList)
     {
         // pushing the peeringo in to the json array
-        arr_j.push_back(json{{"info_hash", p.info_hash}, {"ip", p.ip}, {"peer_id", p.peer_id}});
+        arr_j.push_back(json{{"info_hash", p.info_hash}, {"ip", p.ip}, {"peer_id", p.peer_id} , {"port"  , p.port}});
         cout << p.info_hash << endl
              << p.ip << endl
              << p.peer_id << endl;
@@ -153,6 +153,8 @@ int main()
         std::cerr << "error occured while listening.....";
         return 1;
     }
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     std::cout << "Server is listening and waiting for connection\n";
 
@@ -170,7 +172,7 @@ int main()
         sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
         int client_socket = accept(server_fd, (sockaddr *)&client_addr, &client_len);
-        
+
         Peer p(client_socket, client_len, &client_addr, &event);
         connections.insert({peer_id_gen++, p});
         char ip[INET_ADDRSTRLEN];

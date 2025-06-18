@@ -11,11 +11,10 @@
 #include "../Utils/PeerJoinEventHandler.cpp"
 #include "../Utils/Peerjoin.cpp"
 
-
 using json = nlohmann::json;
 // #include "../../lib/nlohmann/json.hpp"
 #define PORT 6969
-#define SELF_PORT
+#define SELF_PORT 5000
 #define SERVER_EP "127.0.0.1"
 #define MAX_CONNECTIONS 10
 #define MAX_PEER_CONNECTIONS 5
@@ -23,36 +22,31 @@ using json = nlohmann::json;
 // transfer the list from client to server and then server to the client
 using namespace std;
 
-struct peerInfo
-{
-    string ip;
-    string info_hash;
-    string peer_id;
-    //  int port;
-    //  string event;
-};
-
-
 struct Message
 {
     bool success;
     string type;
     string message;
 };
+
 vector<peerInfo> peerList;
+
+const string peer_id = peer_id_gen();
 // nlohmann fucntion
 void from_json(const json &j, peerInfo &p)
 {
     j.at("ip").get_to(p.ip);
     j.at("peer_id").get_to(p.peer_id);
     j.at("info_hash").get_to(p.info_hash);
+    j.at("port").get_to(p.port);
 }
 
 void to_json(json &j, peerInfo p)
 {
     j = json{{"info_hash", p.info_hash},
              {"ip", p.ip},
-             {"peer_id", p.peer_id}};
+             {"peer_id", p.peer_id},
+             {"port", p.port}};
 }
 void to_json(json &j, Message &m)
 {
@@ -67,7 +61,7 @@ string self_info_hash = "the_super_secret_hash";
 
 // one will try to connect...and the other will accept
 
-void messageSerializer(string s)
+void messageSerializer(string s, Event *add_peer_event, Event *send_request_event)
 {
     json j = json::parse(s);
     if (j["type"] == "join")
@@ -76,12 +70,28 @@ void messageSerializer(string s)
         cout << str_mess << endl;
         json mess = json::parse(str_mess);
         vector<peerInfo> peerList = mess.get<vector<peerInfo>>();
+        for (const auto &peer : peerList)
+        {
+            if (peer.peer_id != peer_id)
+            {
+                /*  thread t1 ;
+                 thread t2 ;
+                 add_peer_event->emit(peer);
+                 cout<<"emitted send request "<< endl;
+                 send_request_event->emit(peer); */
+                std::thread t1([&]()
+                               { add_peer_event->emit(peer); });
 
-        //as the list gets updated join with the peer 
+                std::thread t2([&]()
+                               { send_request_event->emit(peer); });
+                t1.join();
+                t2.join();
+            }
+        }
     }
 }
 
-void read_message(int self_soc, int server_soc)
+void read_message(int self_soc, Event *add_peer_event, Event *send_request_event)
 {
     cout << "read messgae" << endl;
     char buffer[1024];
@@ -99,7 +109,7 @@ void read_message(int self_soc, int server_soc)
         cout << "message :" << msg << endl;
         // j = json::parse(msg);
         // vector<peerInfo> peerList = j.get<vector<peerInfo>>();
-        messageSerializer(msg);
+        messageSerializer(msg, add_peer_event, send_request_event);
     }
 }
 
@@ -112,25 +122,6 @@ void sendMessage(int s_socket, Message message)
     string tbs = j.dump();
     cout << "send message" << tbs << endl;
     write(s_socket, tbs.c_str(), tbs.size());
-}
-
-void connect_to_peer(int soc, string ip)
-{
-    sockaddr_in peer_address;
-    peer_address.sin_family = AF_INET;
-    // peer_address.sin_port = peerInfo->port;
-    // peer_address.sin_addr.s_addr= inet_pton(peerInfo->address);
-
-    if (connect(soc, (sockaddr *)&peer_address, (socklen_t)sizeof(peer_address)) < 0)
-    {
-        cerr << "failed to connect  to peer";
-        return;
-    }
-}
-
-bool hand_shake(string peer_info_hash)
-{
-    return self_info_hash.compare(peer_info_hash);
 }
 
 void accept_connection(int peer_soc)
@@ -146,12 +137,16 @@ void accept_connection(int peer_soc)
     close(peer_soc);
 }
 
-
-
-int main()
+int main(int argc, char *argv[])
 {
-    Event e; 
-    
+    int self_port;
+    if (argc > 1)
+    {
+        self_port = stoi(argv[1]);
+    }
+    // Event e;
+    Event add_peer_event;
+    Event send_request_event;
     char buffer[1024];
     sockaddr_in address{};
     socklen_t address_len = sizeof(address);
@@ -171,24 +166,8 @@ int main()
         cerr << "Socket could not be created...." << endl;
         return 2;
     }
-
-    sockaddr_in self_address;
-    memset(&self_address, 0, sizeof(self_address));
-    self_address.sin_family = AF_INET;
-    self_address.sin_addr.s_addr = INADDR_ANY;
-    self_address.sin_port = htons(PORT);
-    // binding the socket to the port
-    if (bind(soc, (sockaddr *)&self_address, sizeof(self_address)) < 0)
-    {
-        cerr << "failed to bind to a port";
-        return 1;
-    }
-
-    if (listen(soc, MAX_PEER_CONNECTIONS) < 0)
-    {
-        cerr << "failed to listen";
-        return 1;
-    }
+    int opt = 1;
+    setsockopt(soc, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     // conneting ot the server
     int n = connect(soc, (sockaddr *)&address, address_len);
@@ -198,21 +177,48 @@ int main()
         cout << n << endl;
         return 1;
     }
+    int self_soc = socket(AF_INET, SOCK_STREAM, 0);
+    sockaddr_in self_address;
+    memset(&self_address, 0, sizeof(self_address));
+    self_address.sin_family = AF_INET;
+    self_address.sin_addr.s_addr = INADDR_ANY;
+    self_address.sin_port = htons(self_port);
+    // binding the socket to the port
+    if (bind(self_soc, (sockaddr *)&self_address, sizeof(self_address)) < 0)
+    {
+        cerr << "failed to bind to a port" << endl;
 
+        return 1;
+    }
+
+    if (listen(self_soc, MAX_PEER_CONNECTIONS) < 0)
+    {
+        cerr << "failed to listen";
+        return 1;
+    }
+cout<<self_port<<endl ; 
     char ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(address.sin_addr), ip, INET_ADDRSTRLEN);
     int port = ntohs(address.sin_port);
     json j;
-    j = json{{"info_hash", self_info_hash}, {"ip", ip}, {"peer_id", peer_id_gen()}};
+    j = json{{"info_hash", self_info_hash}, {"ip", ip}, {"peer_id", peer_id}, {"port", self_port}};
     string message = j.dump();
 
+    PeerManager peermanager(&self_soc, peerInfo{"127.0.0.1", self_info_hash, peer_id, port});
+    int add_peer_eventid = add_peer_event.subscribe([&peermanager](peerInfo p)
+                                                    { peermanager.add_peer(p); });
+
+    int send_request_eventid = send_request_event.subscribe([&peermanager](peerInfo p)
+                                                            { peermanager.send_request(p); });
+
     sendMessage(soc, Message{true, "join", message});
-    read_message(soc, n);
+    read_message(soc, &add_peer_event, &send_request_event);
 
     /////////////////***************** */
     // this can be assigned to someother thread
 
     close(soc);
+    close(self_soc);
     return 0;
 }
 
