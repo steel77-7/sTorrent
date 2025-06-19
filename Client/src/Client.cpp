@@ -14,7 +14,7 @@
 using json = nlohmann::json;
 // #include "../../lib/nlohmann/json.hpp"
 #define PORT 6969
-#define SELF_PORT 5000
+#define SELF_PORT 5001
 #define SERVER_EP "127.0.0.1"
 #define MAX_CONNECTIONS 10
 #define MAX_PEER_CONNECTIONS 5
@@ -120,7 +120,7 @@ void sendMessage(int s_socket, Message message)
         {"type", message.type},
         {"message", message.message}};
     string tbs = j.dump();
-    cout << "send message" << tbs << endl;
+ //   cout << "send message" << tbs << endl;
     write(s_socket, tbs.c_str(), tbs.size());
 }
 
@@ -144,6 +144,9 @@ int main(int argc, char *argv[])
     {
         self_port = stoi(argv[1]);
     }
+
+        cout <<"nOOOOOOOOOO"<<endl;
+cout<<self_port<<endl ; 
     // Event e;
     Event add_peer_event;
     Event send_request_event;
@@ -196,7 +199,11 @@ int main(int argc, char *argv[])
         cerr << "failed to listen";
         return 1;
     }
-cout<<self_port<<endl ; 
+
+
+   /*  sockaddr_in bound_addr{};
+    socklen_t len = sizeof(bound_addr);
+    getsockname(self_soc, (sockaddr*)&bound_addr, &len); */
     char ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(address.sin_addr), ip, INET_ADDRSTRLEN);
     int port = ntohs(address.sin_port);

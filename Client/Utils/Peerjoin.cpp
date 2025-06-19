@@ -33,7 +33,7 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
     // someform of message ahndling and then the handlashake will eb done
     // handlashake logic ko change kr dunga abad mei
     string msg(buffer, val_read);
-    if (!hand_shake(msg, "some_hash rn "))
+    if (!hand_shake(msg, "hash"))
     {
         close(peer_soc);
         cout << "handshake failed" << endl;
@@ -94,6 +94,7 @@ void PeerManager::send_request(peerInfo peer)
     }
     // or just push all this logic into a message handler
     string msg(buffer, val_read);
+    cout<<"handshake string ::"<<msg<<endl;
     if (!hand_shake(msg, "hash"))
     {
         cerr << "handshake failed" << endl;

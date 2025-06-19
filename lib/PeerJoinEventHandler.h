@@ -3,6 +3,7 @@
 #include <iostream>
 #include <functional>
 #include <unordered_map>
+#include <vector>
 
 using namespace std;
 
@@ -14,7 +15,10 @@ struct peerInfo
     string peer_id;
     int port;
     //  string event;
+    vector<string> pieces_hash; 
 };
+
+
 
 class Event
 {
