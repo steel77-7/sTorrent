@@ -6,16 +6,9 @@
 #include <string>
 #include <iostream>
 #include "json.hpp"
+#include "../Client/Utils/JSONSerializer.cpp"
 
 using namespace std;
-struct peerInfo
-{
-    string ip;
-    string info_hash;
-    string peer_id;
-     int port;
-    // string event;
-};
 
 class Event
 {

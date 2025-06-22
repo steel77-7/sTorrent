@@ -4,22 +4,9 @@
 #include <functional>
 #include <unordered_map>
 #include <vector>
+#include "JSONSerializer.h"
 
 using namespace std;
-
-
-struct peerInfo
-{
-    string ip;
-    string info_hash;
-    string peer_id;
-    int port;
-    //  string event;
-    vector<string> pieces_hash; 
-};
-
-
-
 class Event
 {
 public:
@@ -27,7 +14,7 @@ public:
     using Listener = function<void(peerInfo)>;
     ListenerID subscribe(Listener listener);
     void unsubscribe(ListenerID id);
-    void emit(auto data);
+    void emit(peerInfo data);
 
 private:
     ListenerID listenerId = 0;

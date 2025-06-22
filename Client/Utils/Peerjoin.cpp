@@ -23,7 +23,7 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
         cerr << "peer cant be connected" << endl;
         return;
     }
-   // send_request(peer);
+    // send_request(peer);
     int val_read = recv(peer_soc, &buffer, sizeof(buffer), 0);
     if (val_read < 0)
     {
@@ -83,18 +83,19 @@ void PeerManager::send_request(peerInfo peer)
     string tbs = "hash";
     write(soc, tbs.c_str(), tbs.size()); // if the handshake will fail then close the connection
     int val_read = recv(soc, &buffer, sizeof(buffer), 0);
-    int count= 0 ; 
-    again:
+    int count = 0;
+again:
     if (val_read < 0)
     {
-        count ++;
-        if(count<10) goto again; 
+        count++;
+        if (count < 10)
+            goto again;
         cerr << "handshake empty" << endl;
         return;
     }
     // or just push all this logic into a message handler
     string msg(buffer, val_read);
-    cout<<"handshake string ::"<<msg<<endl;
+    cout << "handshake string ::" << msg << endl;
     if (!hand_shake(msg, "hash"))
     {
         cerr << "handshake failed" << endl;
@@ -114,7 +115,21 @@ bool PeerManager::hand_shake(string str, string local_hash)
 
 // probably use the external message handler
 // do do kyu use krne
-void PeerManager::message_handler()
+void PeerManager::message_handler(Message m, peerInfo p)
 {
     // yaha pe mostly piece related loigc lagega
+    string type = m.type;
+    if (type == "have")
+    {
+
+        if (!pieceMap.count(m.message))
+        {
+            vector<string> tp = {p.peer_id};
+            pieceMap.insert({m.message, tp});
+        }
+        vector<string> tp = pieceMap[m.message];
+        tp.push_back(p.peer_id);
+        // do something
+    }
+    // and then  a function to see from all the peeras with piece to download
 }

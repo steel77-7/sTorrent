@@ -22,18 +22,13 @@ using json = nlohmann::json;
 // transfer the list from client to server and then server to the client
 using namespace std;
 
-struct Message
-{
-    bool success;
-    string type;
-    string message;
-};
+
 
 vector<peerInfo> peerList;
 
 const string peer_id = peer_id_gen();
 // nlohmann fucntion
-void from_json(const json &j, peerInfo &p)
+/* void from_json(const json &j, peerInfo &p)
 {
     j.at("ip").get_to(p.ip);
     j.at("peer_id").get_to(p.peer_id);
@@ -55,7 +50,7 @@ void to_json(json &j, Message &m)
         {"type", m.type},
         {"message", m.message},
     };
-}
+} */
 
 string self_info_hash = "the_super_secret_hash";
 
