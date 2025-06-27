@@ -30,7 +30,9 @@ struct peerInfo
     string info_hash;
     string peer_id;
     int port;
+    bool choked; 
     vector<string> pieces_hash; 
+    int socket;
     // string event;
 };
 

@@ -2,7 +2,7 @@
 using namespace std;
 // will have to feed in the self soc to connect to the diff memebers
 
-unordered_map<string, peerInfo> PeerManager::peer_map;
+unordered_map<string, int> PeerManager::peer_map;
 PeerManager::PeerManager(int *soc, peerInfo p)
 {
     selfsoc = soc;
@@ -51,7 +51,7 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
         return;
     }
     // a lot of bugs but they will be solved
-    peer_map.insert({peer.peer_id, peer});
+    peer_map.insert({peer.peer_id, soc});
     cout << endl;
 
     for (const auto &[id, peer] : peer_map)
@@ -121,15 +121,90 @@ void PeerManager::message_handler(Message m, peerInfo p)
     string type = m.type;
     if (type == "have")
     {
-
         if (!pieceMap.count(m.message))
         {
-            vector<string> tp = {p.peer_id};
+            vector<peerInfo> tp = {p};
             pieceMap.insert({m.message, tp});
         }
-        vector<string> tp = pieceMap[m.message];
-        tp.push_back(p.peer_id);
+        vector<peerInfo> tp = pieceMap[m.message];
+        tp.push_back(p);
         // do something
     }
+    else if (type == "interested")
+    {
+        // interested in a piece or connecting
+        // setup some logic to check for the right candidate
+        // and then
+        sendMessage(Message{true, "accepted", ""}, p.socket);
+    }
+
+    else if (type == "request")
+    { // requested piece
+
+        json mess = json::parse(m.message);
+        block b = mess.get<block>();
+        ifstream inputFile(b.piece_id + "tmp", ios::binary | ios::trunc);
+        inputFile.seekg(b.offset);
+        int sent = 0;
+        int pos = b.offset;
+        char buffer[1024] = {0};
+        int chunk_size = 1024;
+        while (sent < b.size)
+        {
+            inputFile.read(buffer, chunk_size);
+            send(p.socket, buffer, sizeof(buffer), 0);
+            pos += chunk_size;
+            inputFile.seekg(pos);
+            sent += chunk_size;
+        }
+        // have
+    }
     // and then  a function to see from all the peeras with piece to download
+}
+
+// error prone
+void PeerManager::downloadHandler(Piece piece)
+{ // maybe pass a call back for it
+    char buffer[1024] = {0};
+    vector<block> b = piece.blocks;
+    vector<peerInfo> peerList = pieceMap[piece.piece_id];
+    int i = 0;
+    for (const auto &p : peerList)
+    {
+
+        sendMessage(Message{true, "interested", ""}, p.socket);
+        // error line
+        int len = recv(p.socket, buffer, sizeof(buffer), 0);
+        if (len < 0)
+        {
+            cerr << "not interested" << endl;
+            return;
+        }
+        string msg(buffer, len);
+        if (msg != "accepted")
+        {
+            cout << "not accepted" << endl;
+            return;
+        }
+
+        json j = json{
+            {"piece_id", b[i].piece_id},
+            {"offset", b[i].offset},
+            {"size", b[i].size},
+        };
+        sendMessage(Message{true, "request", j.dump()}, p.socket);
+        i++;
+        // make logic for re-requesting
+    }
+}
+
+void PeerManager::sendMessage(Message m, int soc)
+{
+    json j = json{{"type", m.type}, {"success", m.success}, {"message", m.message}};
+    string tbs = j.dump();
+    if (send(soc, tbs.c_str(), sizeof(tbs), 0) < 0)
+    {
+        cerr << "failed to send message" << endl;
+        return;
+    }
 }

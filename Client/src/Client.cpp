@@ -72,7 +72,7 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
                 /*  thread t1 ;
                  thread t2 ;
                  add_peer_event->emit(peer);
-                 cout<<"emitted send request "<< endl;
+                 cout<<"emitted send request"<< endl;
                  send_request_event->emit(peer); */
                 std::thread t1([&]()
                                { add_peer_event->emit(peer); });
