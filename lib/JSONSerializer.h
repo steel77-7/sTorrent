@@ -1,13 +1,11 @@
-#ifndef JSON_H
-#define JSON_H 
+#ifndef JSON_SERIALIZER_H
+#define JSON_SERIALIZER_H
 
 #include <vector>
 #include "json.hpp"
 #pragma once
-using namespace std ; 
+using namespace std;
 using json = nlohmann ::json;
-
-
 
 struct block
 {
@@ -30,8 +28,8 @@ struct peerInfo
     string info_hash;
     string peer_id;
     int port;
-    bool choked; 
-    vector<string> pieces_hash; 
+    bool choked;
+    vector<string> pieces_hash;
     int socket;
     // string event;
 };
@@ -45,11 +43,9 @@ struct Message
 
 void from_json(const json &j, peerInfo &p);
 void to_json(json &j, peerInfo p);
-void from_json(json &j, Message &m);
+void from_json(const json &j, Message &m);
 void to_json(json &j, Message &m);
-void from_json(json &j, block &b);
-void to_json(json &j , block &b);
-
-
+void from_json(const json &j, block &b);
+void to_json(json &j, block &b);
 
 #endif

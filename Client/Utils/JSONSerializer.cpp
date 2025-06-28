@@ -19,7 +19,7 @@ void to_json(json &j, peerInfo p)
              {"port", p.port}};
 }
 
-void from_json(json &j, Message &m)
+void from_json(const json &j, Message &m)
 {
     j.at("success").get_to(m.success);
     j.at("type").get_to(m.type);
@@ -34,7 +34,7 @@ void to_json(json &j, Message &m)
     };
 }
 
-void from_json(json &j, block &b)
+void from_json(const json &j, block &b)
 {
     j.at("piece_id").get_to(b.piece_id);
     j.at("offset").get_to(b.offset);

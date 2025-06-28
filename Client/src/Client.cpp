@@ -79,8 +79,7 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
 
                 std::thread t2([&]()
                                { send_request_event->emit(peer); });
-                t1.join();
-                t2.join();
+               
             }
         }
     }

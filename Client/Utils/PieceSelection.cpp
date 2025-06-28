@@ -7,6 +7,10 @@ PieceManager::PieceManager(PeerManager *p)
     this->p = p;
 }
 
+PieceManager::PieceManager()
+{
+}
+
 void PieceManager::initialPieceSelection()
 {
 
@@ -17,7 +21,8 @@ void PieceManager::initialPieceSelection()
     uniform_int_distribution<> distrib(low, high);
     int ran = distrib(gen);
     // then ask the peer manager to do the shit
-    p->downloadHandler(to_download[ran]);
+    PieceManager pm;
+    p->downloadHandler(to_download[ran], downloader, &pm);
     // downloader(to_download[ran]);
 }
 
@@ -58,8 +63,8 @@ void PieceManager::downloader(string pieceid, block *block_info, int soc)
         interval = chrono::duration_cast<chrono::milliseconds>(finish - start);
         // fwrite(buffer , size_of_block, &outPutFile);
         outPutFile.seekp(offset);
+        outPutFile.write(buffer, size_of_chunk);
         offset += chunk_size;
-        outPutFile.write(buffer, downloaded);
         downloaded += size_of_chunk;
     }
     // do somethign with this

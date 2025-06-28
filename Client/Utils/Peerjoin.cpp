@@ -1,4 +1,5 @@
 #include "../../lib/Peerjoin.h"
+#include "JSONSerializer.cpp"
 using namespace std;
 // will have to feed in the self soc to connect to the diff memebers
 
@@ -7,6 +8,10 @@ PeerManager::PeerManager(int *soc, peerInfo p)
 {
     selfsoc = soc;
     self_info = p;
+}
+
+PeerManager::PeerManager(){ 
+
 }
 
 void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connection request
@@ -142,8 +147,8 @@ void PeerManager::message_handler(Message m, peerInfo p)
     { // requested piece
 
         json mess = json::parse(m.message);
-        block b = mess.get<block>();
-        ifstream inputFile(b.piece_id + "tmp", ios::binary | ios::trunc);
+        block b = mess.get<block>();   
+        ifstream inputFile(b.piece_id + ".tmp", ios::binary);
         inputFile.seekg(b.offset);
         int sent = 0;
         int pos = b.offset;
@@ -163,7 +168,7 @@ void PeerManager::message_handler(Message m, peerInfo p)
 }
 
 // error prone
-void PeerManager::downloadHandler(Piece piece)
+void PeerManager::downloadHandler(Piece piece, void (PieceManager::*downloader)(string pieceid, block *block_info, int soc), PieceManager *pm)
 { // maybe pass a call back for it
     char buffer[1024] = {0};
     vector<block> b = piece.blocks;
@@ -171,7 +176,6 @@ void PeerManager::downloadHandler(Piece piece)
     int i = 0;
     for (const auto &p : peerList)
     {
-
         sendMessage(Message{true, "interested", ""}, p.socket);
         // error line
         int len = recv(p.socket, buffer, sizeof(buffer), 0);
@@ -193,6 +197,7 @@ void PeerManager::downloadHandler(Piece piece)
             {"size", b[i].size},
         };
         sendMessage(Message{true, "request", j.dump()}, p.socket);
+        (pm->*downloader)(piece.piece_id, &b[i], p.socket);
         i++;
         // make logic for re-requesting
     }
