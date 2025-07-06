@@ -6,7 +6,7 @@
 #include <string>
 #include <iostream>
 #include "json.hpp"
-#include "../Client/Utils/JSONSerializer.cpp"
+#include "JSONSerializer.h"
 
 using namespace std;
 

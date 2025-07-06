@@ -1,9 +1,11 @@
 #include "PieceSelection.h"
 #include "JSONSerializer.cpp"
+// #include "Peerjoin.cpp"
 #include <chrono>
 using namespace std;
 PieceManager::PieceManager(PeerManager *p)
 {
+    cout << "in the piece manager CONSTRUCTOR" << endl;
     this->p = p;
 }
 
@@ -18,16 +20,40 @@ void PieceManager::initialPieceSelection()
     int high = to_download.size();
     random_device rd;
     mt19937 gen(rd());
-    uniform_int_distribution<> distrib(low, high);
+    if (high == 0)
+    {
+        cerr << "No pieces to download." << endl;
+        return;
+    }
+    uniform_int_distribution<> distrib(low, high - 1);
     int ran = distrib(gen);
     // then ask the peer manager to do the shit
-    PieceManager pm;
-    p->downloadHandler(to_download[ran], downloader, &pm);
+    // PieceManager pm;
+    p->downloadHandler(to_download[ran], &PieceManager::downloader, this);
     // downloader(to_download[ran]);
 }
 
-void PieceManager::pieceSelection() // depedning upono the rearest fist
+void PieceManager::rarest_piece_selection() // depedning upono the rearest fist
 {
+    // make some logic to repeat this after every piece is downloaded
+    // have a state that will determine initial downalod
+    vector<int> piece_count;
+    vector<string> p_ids;
+    for (const auto &val : p->pieceMap)
+    {
+        p_ids.push_back(val.first);
+        piece_count.push_back(val.second.size());
+    }
+    auto min_el = min_element(piece_count.begin(), piece_count.end());
+    if (min_el != piece_count.end())
+    {
+        // int min_val = *min_el;
+        int index = distance(piece_count.begin(), min_el);
+        auto download_index = find(to_download.begin(), to_download.end(), p_ids[index]);
+        if (download_index != to_download.end())
+            p->downloadHandler(to_download[distance(to_download.begin(), download_index)], &PieceManager::downloader, this);
+        to_download.erase(download_index);
+    }
 }
 
 void PieceManager::assembler()

@@ -1,3 +1,5 @@
 bin/
 .vscode
 json.hpp
+test/
+test.txt

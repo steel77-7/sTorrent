@@ -11,7 +11,7 @@ void from_json(const json &j, peerInfo &p)
     j.at("port").get_to(p.port);
 }
 
-void to_json(json &j, peerInfo p)
+void to_json( json &j, peerInfo p)
 {
     j = json{{"info_hash", p.info_hash},
              {"ip", p.ip},
@@ -25,7 +25,7 @@ void from_json(const json &j, Message &m)
     j.at("type").get_to(m.type);
     j.at("message").get_to(m.message);
 }
-void to_json(json &j, Message &m)
+void to_json( json &j, Message &m)
 {
     j = json{
         {"success", m.success},
@@ -42,7 +42,7 @@ void from_json(const json &j, block &b)
     j.at("status").get_to(b.status);
 }
 
-void to_json(json &j , block &b)
+void to_json( json &j , block &b)
 {   
    j = json{
         {"piece_id", b.piece_id},
@@ -52,3 +52,6 @@ void to_json(json &j , block &b)
 
    };
 }
+
+
+

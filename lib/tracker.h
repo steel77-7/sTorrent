@@ -10,6 +10,7 @@
 #include <thread>
 #include <variant>
 #include "Event.h"
+
 // #include "../tracker/JoinHandler.cpp"
 
 #define MAX_CONNECTIONS 10
@@ -19,12 +20,6 @@ using namespace std;
 using namespace std;
 
 
-struct Message
-{
-    bool success;
-    string type;
-    string message;
-};
 
 using MessageType = variant<peerInfo, Message>;
 

@@ -1,17 +1,22 @@
 #include "../../lib/Peerjoin.h"
-#include "JSONSerializer.cpp"
 using namespace std;
 // will have to feed in the self soc to connect to the diff memebers
 
+/* std::string sha1(const std::vector<char>& data) {
+    unsigned char hash[SHA_DIGEST_LENGTH]; // SHA_DIGEST_LENGTH = 20
+    SHA1(reinterpret_cast<const unsigned char*>(data.data()), data.size(), hash);
+    std::stringstream ss;
+    for (int i = 0; i < SHA_DIGEST_LENGTH; ++i)
+        ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
+    return ss.str(); // return hex string
+} */
+
 unordered_map<string, int> PeerManager::peer_map;
-PeerManager::PeerManager(int *soc, peerInfo p)
+PeerManager::PeerManager(int *soc, peerInfo p, bool seed)
 {
     selfsoc = soc;
     self_info = p;
-}
-
-PeerManager::PeerManager(){ 
-
+    this->seed = seed;
 }
 
 void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connection request
@@ -62,8 +67,14 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
     for (const auto &[id, peer] : peer_map)
     {
         cout << id << endl;
+        vector<string> piece_ids;
+        for (const auto p : ps->downloaded)
+        {
+            piece_ids.push_back(p.piece_id);
+        }
+        json j = piece_ids;
+        sendMessage(Message{1, "have", j.dump()}, soc);
     }
-    cout << endl;
 }
 
 void PeerManager::send_request(peerInfo peer)
@@ -98,6 +109,12 @@ again:
         cerr << "handshake empty" << endl;
         return;
     }
+
+    if (self_info.peer_id < peer.peer_id)
+    {
+        close(peer_soc);
+        return;
+    }
     // or just push all this logic into a message handler
     string msg(buffer, val_read);
     cout << "handshake string ::" << msg << endl;
@@ -107,6 +124,7 @@ again:
         close(peer_soc);
         return;
     }
+    peer_map.insert({peer.peer_id, peer.socket});
     cout << "handshake successfull" << endl;
 }
 
@@ -122,48 +140,65 @@ bool PeerManager::hand_shake(string str, string local_hash)
 // do do kyu use krne
 void PeerManager::message_handler(Message m, peerInfo p)
 {
-    // yaha pe mostly piece related loigc lagega
-    string type = m.type;
-    if (type == "have")
+    cout << m.message << endl;
+    try
     {
-        if (!pieceMap.count(m.message))
+        // yaha pe mostly piece related loigc lagega
+        string type = m.type;
+        if (type == "have")
         {
-            vector<peerInfo> tp = {p};
-            pieceMap.insert({m.message, tp});
+            // do something
+            vector<string> pieceList = json::parse(m.message);
+            for (const string &piece : pieceList)
+            {
+                if (!pieceMap.count(piece))
+                {
+                    set<peerInfo> peers = {p};
+                    pieceMap.insert({piece, peers});
+                }
+                else
+                {
+                    set<peerInfo> p_ids = pieceMap[piece];
+                    p_ids.insert(p);
+                    pieceMap[piece] = p_ids;
+                }
+            }
         }
-        vector<peerInfo> tp = pieceMap[m.message];
-        tp.push_back(p);
-        // do something
+        else if (type == "interested")
+        {
+            // interested in a piece or connecting
+            // setup some logic to check for the right candidate
+            // and then
+            sendMessage(Message{true, "accepted", ""}, p.socket);
+        }
+
+        else if (type == "request")
+        { // requested piece
+
+            json mess = json::parse(m.message);
+            block b = mess.get<block>();
+            ifstream inputFile(b.piece_id + "tmp", ios::binary | ios::trunc);
+            inputFile.seekg(b.offset);
+            int sent = 0;
+            int pos = b.offset;
+            char buffer[1024] = {0};
+            int chunk_size = 1024;
+            while (sent < b.size)
+            {
+                inputFile.read(buffer, chunk_size);
+                send(p.socket, buffer, sizeof(buffer), 0);
+                pos += chunk_size;
+                inputFile.seekg(pos);
+                sent += chunk_size;
+            }
+            // have
+        }
     }
-    else if (type == "interested")
+    catch (exception &e)
     {
-        // interested in a piece or connecting
-        // setup some logic to check for the right candidate
-        // and then
-        sendMessage(Message{true, "accepted", ""}, p.socket);
+        cout << "excpetion occured in the message handler " << endl;
     }
 
-    else if (type == "request")
-    { // requested piece
-
-        json mess = json::parse(m.message);
-        block b = mess.get<block>();   
-        ifstream inputFile(b.piece_id + ".tmp", ios::binary);
-        inputFile.seekg(b.offset);
-        int sent = 0;
-        int pos = b.offset;
-        char buffer[1024] = {0};
-        int chunk_size = 1024;
-        while (sent < b.size)
-        {
-            inputFile.read(buffer, chunk_size);
-            send(p.socket, buffer, sizeof(buffer), 0);
-            pos += chunk_size;
-            inputFile.seekg(pos);
-            sent += chunk_size;
-        }
-        // have
-    }
     // and then  a function to see from all the peeras with piece to download
 }
 
@@ -172,7 +207,7 @@ void PeerManager::downloadHandler(Piece piece, void (PieceManager::*downloader)(
 { // maybe pass a call back for it
     char buffer[1024] = {0};
     vector<block> b = piece.blocks;
-    vector<peerInfo> peerList = pieceMap[piece.piece_id];
+    set<peerInfo> peerList = pieceMap[piece.piece_id];
     int i = 0;
     for (const auto &p : peerList)
     {
@@ -197,7 +232,7 @@ void PeerManager::downloadHandler(Piece piece, void (PieceManager::*downloader)(
             {"size", b[i].size},
         };
         sendMessage(Message{true, "request", j.dump()}, p.socket);
-        (pm->*downloader)(piece.piece_id, &b[i], p.socket);
+        (pm->downloader)(piece.piece_id, &b[i], p.socket);
         i++;
         // make logic for re-requesting
     }
@@ -212,4 +247,29 @@ void PeerManager::sendMessage(Message m, int soc)
         cerr << "failed to send message" << endl;
         return;
     }
+}
+
+void PeerManager::seeder()
+{
+    cout << "doign the file" << endl;
+    ifstream infile("test.txt", ios::binary);
+    int size = 8192;
+    int index = 0;
+    while (!infile.eof())
+    {
+        vector<char> buffer(size);
+        infile.read(buffer.data(), size);
+        streamsize read_size = infile.gcount();
+        std::ostringstream filename;
+        filename << "test/" << std::setw(3) << std::setfill('0') << index++ << ".tmp";
+        if (read_size > 0)
+        {
+            buffer.resize(read_size);
+            ofstream out(filename.str(), ios::binary);
+            // i = i[0]++;
+            out.write(buffer.data(), buffer.size());
+            out.close();
+        }
+    }
+    cout << "FILE DONEEEEEEEEEEEEEEEEEEEEEEEEEE" << endl;
 }

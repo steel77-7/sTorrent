@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <algorithm>
 #include "../../lib/Peerjoin.h"
 using namespace std;
 // have a piece
@@ -21,15 +22,15 @@ class PieceManager
 {
 private:
     // unordered_map<string, vector<Piece>> peerPieceMap;
-    set<Piece> downloaded;
     vector<Piece> to_download; // later with all rarity and stuff
     PeerManager *p;
 
 public:
+    vector<Piece> downloaded;
     PieceManager(PeerManager *p);
     PieceManager();
     void initialPieceSelection();
-    void pieceSelection();
+    void rarest_piece_selection();
     void downloader(string pieceid, block *block_info, int soc);
     void uploader();
     void assembler();
