@@ -1,5 +1,7 @@
 #include "../../lib/Peerjoin.h"
+#include <chrono>
 using namespace std;
+using Clock = std::chrono::steady_clock;
 // will have to feed in the self soc to connect to the diff memebers
 
 /* std::string sha1(const std::vector<char>& data) {
@@ -11,7 +13,7 @@ using namespace std;
     return ss.str(); // return hex string
 } */
 
-unordered_map<string, int> PeerManager::peer_map;
+// unordered_map<string, int> PeerManager::peer_map;
 PeerManager::PeerManager(int *soc, peerInfo p, bool seed)
 {
     selfsoc = soc;
@@ -19,6 +21,12 @@ PeerManager::PeerManager(int *soc, peerInfo p, bool seed)
     this->seed = seed;
 }
 
+// just a helper fucntion
+peerInfo *PeerManager::get_peer(string peer_id)
+{
+    return &peer_map[peer_id];
+}
+// change these cause everytie they connect they will have a new peer info
 void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connection request
 {
     cout << "int hte add peer" << endl;
@@ -61,7 +69,7 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
         return;
     }
     // a lot of bugs but they will be solved
-    peer_map.insert({peer.peer_id, soc});
+    peer_map.insert({peer.peer_id, peer});
     cout << endl;
 
     for (const auto &[id, peer] : peer_map)
@@ -124,7 +132,7 @@ again:
         close(peer_soc);
         return;
     }
-    peer_map.insert({peer.peer_id, peer.socket});
+    peer_map.insert({peer.peer_id, peer});
     cout << "handshake successfull" << endl;
 }
 
@@ -138,7 +146,7 @@ bool PeerManager::hand_shake(string str, string local_hash)
 
 // probably use the external message handler
 // do do kyu use krne
-void PeerManager::message_handler(Message m, peerInfo p)
+void PeerManager::message_handler(Message m, string peer_id)
 {
     cout << m.message << endl;
     try
@@ -153,13 +161,14 @@ void PeerManager::message_handler(Message m, peerInfo p)
             {
                 if (!pieceMap.count(piece))
                 {
-                    set<peerInfo> peers = {p};
+
+                    set<peerInfo *> peers = {get_peer(peer_id)};
                     pieceMap.insert({piece, peers});
                 }
                 else
                 {
-                    set<peerInfo> p_ids = pieceMap[piece];
-                    p_ids.insert(p);
+                    set<peerInfo *> p_ids = pieceMap[piece];
+                    p_ids.insert(get_peer(peer_id));
                     pieceMap[piece] = p_ids;
                 }
             }
@@ -169,7 +178,9 @@ void PeerManager::message_handler(Message m, peerInfo p)
             // interested in a piece or connecting
             // setup some logic to check for the right candidate
             // and then
-            sendMessage(Message{true, "accepted", ""}, p.socket);
+            peerInfo *peer = get_peer(peer_id);
+            sendMessage(Message{true, "accepted", ""}, peer->socket);
+            peer->choked = false;
         }
 
         else if (type == "request")
@@ -183,10 +194,11 @@ void PeerManager::message_handler(Message m, peerInfo p)
             int pos = b.offset;
             char buffer[1024] = {0};
             int chunk_size = 1024;
+            peerInfo *peer = get_peer(peer_id);
             while (sent < b.size)
             {
                 inputFile.read(buffer, chunk_size);
-                send(p.socket, buffer, sizeof(buffer), 0);
+                send(peer->socket, buffer, sizeof(buffer), 0);
                 pos += chunk_size;
                 inputFile.seekg(pos);
                 sent += chunk_size;
@@ -204,16 +216,16 @@ void PeerManager::message_handler(Message m, peerInfo p)
 
 // error prone
 void PeerManager::downloadHandler(Piece piece, void (PieceManager::*downloader)(string pieceid, block *block_info, int soc), PieceManager *pm)
-{ // maybe pass a call back for it
+{
     char buffer[1024] = {0};
     vector<block> b = piece.blocks;
-    set<peerInfo> peerList = pieceMap[piece.piece_id];
+    set<peerInfo *> peerList = pieceMap[piece.piece_id];
     int i = 0;
     for (const auto &p : peerList)
     {
-        sendMessage(Message{true, "interested", ""}, p.socket);
+        sendMessage(Message{true, "interested", ""}, p->socket);
         // error line
-        int len = recv(p.socket, buffer, sizeof(buffer), 0);
+        int len = recv(p->socket, buffer, sizeof(buffer), 0);
         if (len < 0)
         {
             cerr << "not interested" << endl;
@@ -231,8 +243,8 @@ void PeerManager::downloadHandler(Piece piece, void (PieceManager::*downloader)(
             {"offset", b[i].offset},
             {"size", b[i].size},
         };
-        sendMessage(Message{true, "request", j.dump()}, p.socket);
-        (pm->downloader)(piece.piece_id, &b[i], p.socket);
+        sendMessage(Message{true, "request", j.dump()}, p->socket);
+        (pm->downloader)(piece.piece_id, &b[i], p->socket);
         i++;
         // make logic for re-requesting
     }
@@ -246,6 +258,53 @@ void PeerManager::sendMessage(Message m, int soc)
     {
         cerr << "failed to send message" << endl;
         return;
+    }
+}
+
+void PeerManager::chokingManager()
+{
+    // download speeds
+    /*
+     upload to one having the best download speed
+     download from one having the best upload speed
+     automatically choked from the beginning
+     and then decide in the above criteria
+     this will handle the choking and unchoking in 10 seconds
+    */
+}
+
+void PeerManager::optimistic_unchoke()
+{
+    auto prev_time = Clock::now();
+    while (true)
+    {
+        auto now = Clock::now();
+        if (std::chrono::duration_cast<chrono::seconds>(now - prev_time).count() >= 30)
+        {
+            // perform the optimitic unchoke
+            int low = 0;
+            int high = peer_map.size();
+            random_device rd;
+            mt19937 gen(rd());
+            if (high == 0)
+            {
+                cerr << "No pieces to download." << endl;
+                return;
+            }
+            uniform_int_distribution<> distrib(low, high - 1);
+            int ran = distrib(gen);
+            int i = 1;
+            for (const auto &[key, val] : peer_map)
+            {
+                if (ran == i)
+                {
+                    peerInfo *p = &peer_map[key];
+                    p->choked = false;
+                }
+                i++;
+            }
+            prev_time = now;
+        }
     }
 }
 
