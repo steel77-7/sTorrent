@@ -39,7 +39,7 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
         if (j["type"] == "join")
         {
             string str_mess = j["message"];
-            cout << str_mess << endl;
+           // cout << str_mess << endl;
             json mess = json::parse(str_mess);
             vector<peerInfo> peerList = mess.get<vector<peerInfo>>();
             for (const auto &peer : peerList)
@@ -51,8 +51,8 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
 
                     std::thread t2([&]()
                                    { send_request_event->emit(peer); });
-                                   t1.join(); 
-                                   t2.join();
+                                  // t1.join(); 
+                                  // t2.join();
                 }
                 cout<<"exited the listner for now"<<endl; 
             }

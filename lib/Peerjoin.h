@@ -32,11 +32,13 @@ class PeerManager
 private:
     int *selfsoc;
     peerInfo self_info;
-    bool seed;
+    bool seed; 
 
 public:
     unordered_map<string, set<peerInfo*>> pieceMap; // piece id with the peers that have it
     unordered_map<string, peerInfo> peer_map;
+    unordered_map<string, peerInfo*> choke_map;
+
     PieceManager *ps;
     PeerManager(int *soc, peerInfo p, bool seed);
     PeerManager();
@@ -48,7 +50,9 @@ public:
     void message_handler(Message m, string peer_id);
     void sendMessage(Message m, int soc);
     void downloadHandler(Piece piece, void (PieceManager::*downloader)(std::string, block *, int), PieceManager *pm);
-    void chokingManager();
+    void chokingManager(string peer_id);//on each peer 
+    void data_poll(); //will check if data is being recieved or not if not then new peer will be searched for downaloding the data
+
     void optimistic_unchoke();
     void seeder();
 };

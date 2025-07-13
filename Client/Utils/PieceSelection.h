@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <iostream>
 #include <vector>
-#include <set>
+#include <unordered_set>
 #include <random>
 #include <fstream>
 #include <sys/socket.h>
@@ -22,7 +22,8 @@ class PieceManager
 {
 private:
     // unordered_map<string, vector<Piece>> peerPieceMap;
-    vector<Piece> to_download; // later with all rarity and stuff
+    vector<Piece> to_download; 
+   // unordered_set<std::string , Piece> to_download; // later with all rarity and stuff
     PeerManager *p;
 
 public:

@@ -29,7 +29,6 @@ peerInfo *PeerManager::get_peer(string peer_id)
 // change these cause everytie they connect they will have a new peer info
 void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connection request
 {
-    cout << "int hte add peer" << endl;
     char buffer[1024];
     sockaddr_in peer_addr;
     socklen_t peer_len = sizeof(peer_addr);
@@ -70,11 +69,10 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
     }
     // a lot of bugs but they will be solved
     peer_map.insert({peer.peer_id, peer});
-    cout << endl;
 
     for (const auto &[id, peer] : peer_map)
     {
-        cout << id << endl;
+        cout << "Connected to peer: "<<id << endl;
         vector<string> piece_ids;
         for (const auto p : ps->downloaded)
         {
@@ -87,7 +85,6 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
 
 void PeerManager::send_request(peerInfo peer)
 {
-    cout << "send request" << endl;
 
     char buffer[1024];
     sockaddr_in peer_addr;
@@ -148,7 +145,7 @@ bool PeerManager::hand_shake(string str, string local_hash)
 // do do kyu use krne
 void PeerManager::message_handler(Message m, string peer_id)
 {
-    cout << m.message << endl;
+    cout << "Message from peer :"<<peer_id<<m.message << endl;
     try
     {
         // yaha pe mostly piece related loigc lagega
@@ -179,8 +176,16 @@ void PeerManager::message_handler(Message m, string peer_id)
             // setup some logic to check for the right candidate
             // and then
             peerInfo *peer = get_peer(peer_id);
+            //tw::another condition to check the other choking and unchoking criteria of the peers 
+            if (choke_map.size() >= 5)
+            {
+                sendMessage(Message{true, "rejected", ""}, peer->socket);
+                return;
+            }
             sendMessage(Message{true, "accepted", ""}, peer->socket);
+            // tw :: work to be done here
             peer->choked = false;
+            choke_map.insert({peer_id, peer});
         }
 
         else if (type == "request")
@@ -204,6 +209,10 @@ void PeerManager::message_handler(Message m, string peer_id)
                 sent += chunk_size;
             }
             // have
+        }
+        else if(type == "rejected"){ 
+
+            return ; 
         }
     }
     catch (exception &e)
@@ -261,16 +270,27 @@ void PeerManager::sendMessage(Message m, int soc)
     }
 }
 
-void PeerManager::chokingManager()
+void PeerManager::chokingManager(string peer_id)
 {
-    // download speeds
-    /*
-     upload to one having the best download speed
-     download from one having the best upload speed
-     automatically choked from the beginning
-     and then decide in the above criteria
-     this will handle the choking and unchoking in 10 seconds
-    */
+    // do it on each peer
+    // the choking manager will only see over the peer while there connected
+    // not initiation of choking
+    // it can unchoke them tho
+    peerInfo *p = get_peer(peer_id);
+    auto prev_time = Clock::now();
+
+    while (true)
+    {
+        auto now = Clock::now();
+        if (std::chrono::duration_cast<chrono::seconds>(now - prev_time).count() >= 30)
+        {
+            // but i have to chek if data is recieved or not ...... if not then rebuild that piece by downaloding it form different peers
+            // tw:: check if the download is finished or not
+            p->choked = true;
+            choke_map.erase(peer_id);
+        }
+        prev_time = now;
+    }
 }
 
 void PeerManager::optimistic_unchoke()
@@ -310,7 +330,7 @@ void PeerManager::optimistic_unchoke()
 
 void PeerManager::seeder()
 {
-    cout << "doign the file" << endl;
+    cout << "Splitting the file" << endl;
     ifstream infile("test.txt", ios::binary);
     int size = 8192;
     int index = 0;
