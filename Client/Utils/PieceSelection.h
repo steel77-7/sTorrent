@@ -27,10 +27,10 @@ private:
     PeerManager *p;
 
 public:
-    vector<Piece> downloaded;
+    vector<string> downloaded;
     PieceManager(PeerManager *p);
     PieceManager();
-    void initialPieceSelection();
+    bool initialPieceSelection();
     void rarest_piece_selection();
     void downloader(string pieceid, block *block_info, int soc);
     void uploader();

@@ -23,13 +23,20 @@ using json = nlohmann::json;
 // transfer the list from client to server and then server to the client
 using namespace std;
 
-vector<peerInfo> peerList;
-
 const string peer_id = peer_id_gen();
 
 string self_info_hash = "the_super_secret_hash";
 
 // one will try to connect...and the other will accept
+
+bool isPeerKnown(const vector<peerInfo> &knownPeers, const peerInfo &peer)
+{
+    return std::any_of(knownPeers.begin(), knownPeers.end(),
+                       [&](const peerInfo &p)
+                       { return p.peer_id == peer.peer_id; });
+}
+
+vector<peerInfo> peers;
 
 void messageSerializer(string s, Event *add_peer_event, Event *send_request_event)
 {
@@ -38,25 +45,24 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
         json j = json::parse(s);
         if (j["type"] == "join")
         {
+            // tw::the peer list alaways renews ....fix it
             string str_mess = j["message"];
-           // cout << str_mess << endl;
             json mess = json::parse(str_mess);
             vector<peerInfo> peerList = mess.get<vector<peerInfo>>();
+
             for (const auto &peer : peerList)
             {
-                if (peer.peer_id != peer_id)
+                if (peer.peer_id != peer_id && !isPeerKnown(peers, peer))
                 {
+                    peers.push_back(peer);
                     std::thread t1([&]()
                                    { add_peer_event->emit(peer); });
 
                     std::thread t2([&]()
                                    { send_request_event->emit(peer); });
-                                  // t1.join(); 
-                                  // t2.join();
+                    cout << "exited the listner for now" << endl;
                 }
-                cout<<"exited the listner for now"<<endl; 
             }
-
         }
     }
     catch (exception &ex)
@@ -109,15 +115,7 @@ int main(int argc, char *argv[])
 {
     int self_port;
     int seeder;
-    /*  if (argc != 3)
-     {
 
-         std::cerr << "Usage: " << argv[0] << " <self_port> <seeder>" << std::endl;
-         return 1;
-     }
-
-     self_port = stoi(argv[1]);
-     seeder = stoi(argv[2]); */
     cout << "Enter the port" << endl;
 
     cin >> self_port;
@@ -197,18 +195,23 @@ int main(int argc, char *argv[])
     int send_request_eventid = send_request_event.subscribe([&peermanager](peerInfo p)
                                                             { peermanager.send_request(p); });
     sendMessage(soc, Message{true, "join", message});
-    thread messageThread([&](){ 
-
-        read_message(soc, &add_peer_event, &send_request_event);
-    });
-    PieceManager pieceManager(&peermanager);
-    peermanager.ps = &pieceManager; 
+    thread messageThread([&]()
+                         { read_message(soc, &add_peer_event, &send_request_event); });
+    PieceManager piecemanager(&peermanager);
+    peermanager.ps = &piecemanager;
     cout << 2 << endl;
     if (seeder == 1)
     {
-        cout<<"seeder processes"<<endl ;
+        cout << "seeder processes" << endl;
         peermanager.seeder();
     }
+    else
+    {
+        // tw:: blockiing expresion that woill be cured in the future
+        if (piecemanager.initialPieceSelection())
+            piecemanager.rarest_piece_selection();
+    }
+
     cout << 3 << endl;
     messageThread.join();
 

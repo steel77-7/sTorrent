@@ -47,7 +47,7 @@ public:
     bool hand_shake(string str, string local_hash);
     void peerSelection(); // will select the file to be downloaded from atmost 5 peers
     peerInfo* get_peer(string peer_id);
-    void message_handler(Message m, string peer_id);
+    void message_handler( string peer_id);
     void sendMessage(Message m, int soc);
     void downloadHandler(Piece piece, void (PieceManager::*downloader)(std::string, block *, int), PieceManager *pm);
     void chokingManager(string peer_id);//on each peer 

@@ -1,5 +1,7 @@
 #include "../../lib/Peerjoin.h"
 #include <chrono>
+using json = nlohmann ::json;
+
 using namespace std;
 using Clock = std::chrono::steady_clock;
 // will have to feed in the self soc to connect to the diff memebers
@@ -70,16 +72,18 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
     // a lot of bugs but they will be solved
     peer_map.insert({peer.peer_id, peer});
 
+    message_handler(peer.peer_id);
+
     for (const auto &[id, peer] : peer_map)
     {
-        cout << "Connected to peer: "<<id << endl;
+        cout << "Connected to peer: " << id << endl;
         vector<string> piece_ids;
         for (const auto p : ps->downloaded)
         {
-            piece_ids.push_back(p.piece_id);
+            piece_ids.push_back(p);
         }
         json j = piece_ids;
-        sendMessage(Message{1, "have", j.dump()}, soc);
+        sendMessage(Message{true, "have", j.dump()}, soc);
     }
 }
 
@@ -143,81 +147,98 @@ bool PeerManager::hand_shake(string str, string local_hash)
 
 // probably use the external message handler
 // do do kyu use krne
-void PeerManager::message_handler(Message m, string peer_id)
+void PeerManager::message_handler(string peer_id)
 {
-    cout << "Message from peer :"<<peer_id<<m.message << endl;
+    char buffer[1024];
     try
     {
-        // yaha pe mostly piece related loigc lagega
-        string type = m.type;
-        if (type == "have")
+        while (true)
         {
-            // do something
-            vector<string> pieceList = json::parse(m.message);
-            for (const string &piece : pieceList)
-            {
-                if (!pieceMap.count(piece))
-                {
 
-                    set<peerInfo *> peers = {get_peer(peer_id)};
-                    pieceMap.insert({piece, peers});
-                }
-                else
+            peerInfo *p = get_peer(peer_id);
+            int soc = p->socket;
+
+            int val = recv(soc, buffer, sizeof(buffer), 0);
+            string msg(buffer, val);
+            json j = json::parse(msg);
+
+            Message m = j.get<Message>();
+            cout << "Message from peer :" << peer_id << m.message << endl;
+            // yaha pe mostly piece related loigc lagega
+            string type = m.type;
+            cout << "Message type" << m.type << endl;
+            if (type == "have")
+            {
+                // do somethin
+                vector<string> pieceList = json::parse(m.message);
+                for (const string &piece : pieceList)
                 {
-                    set<peerInfo *> p_ids = pieceMap[piece];
-                    p_ids.insert(get_peer(peer_id));
-                    pieceMap[piece] = p_ids;
+                    if (!pieceMap.count(piece))
+                    {
+
+                        set<peerInfo *> peers = {get_peer(peer_id)};
+                        pieceMap.insert({piece, peers});
+                    }
+                    else
+                    {
+                        set<peerInfo *> p_ids = pieceMap[piece];
+                        p_ids.insert(get_peer(peer_id));
+                        pieceMap[piece] = p_ids;
+                    }
                 }
             }
-        }
-        else if (type == "interested")
-        {
-            // interested in a piece or connecting
-            // setup some logic to check for the right candidate
-            // and then
-            peerInfo *peer = get_peer(peer_id);
-            //tw::another condition to check the other choking and unchoking criteria of the peers 
-            if (choke_map.size() >= 5)
+            else if (type == "interested")
             {
-                sendMessage(Message{true, "rejected", ""}, peer->socket);
+                // interested in a piece or connecting
+                // setup some logic to check for the right candidate
+                // and then
+
+                peerInfo *peer = get_peer(peer_id);
+                // tw::another condition to check the other choking and unchoking criteria of the peers
+                if (choke_map.size() >= 5)
+                {
+                    sendMessage(Message{true, "rejected", ""}, peer->socket);
+                    return;
+                }
+                sendMessage(Message{true, "accepted", ""}, peer->socket);
+                // tw :: work to be done here
+                peer->choked = false;
+                choke_map.insert({peer_id, peer});
+            }
+
+            else if (type == "request")
+            { // requested piece
+
+                json mess = json::parse(m.message);
+                block b = mess.get<block>();
+                ifstream inputFile(b.piece_id + "tmp", ios::binary | ios::trunc);
+                inputFile.seekg(b.offset);
+                int sent = 0;
+                int pos = b.offset;
+                char buffer[1024] = {0};
+                int chunk_size = 1024;
+                peerInfo *peer = get_peer(peer_id);
+                while (sent < b.size)
+                {
+                    inputFile.read(buffer, chunk_size);
+                    send(peer->socket, buffer, sizeof(buffer), 0);
+                    pos += chunk_size;
+                    inputFile.seekg(pos);
+                    sent += chunk_size;
+                }
+                // have
+            }
+            else if (type == "rejected")
+            {
+
                 return;
             }
-            sendMessage(Message{true, "accepted", ""}, peer->socket);
-            // tw :: work to be done here
-            peer->choked = false;
-            choke_map.insert({peer_id, peer});
-        }
-
-        else if (type == "request")
-        { // requested piece
-
-            json mess = json::parse(m.message);
-            block b = mess.get<block>();
-            ifstream inputFile(b.piece_id + "tmp", ios::binary | ios::trunc);
-            inputFile.seekg(b.offset);
-            int sent = 0;
-            int pos = b.offset;
-            char buffer[1024] = {0};
-            int chunk_size = 1024;
-            peerInfo *peer = get_peer(peer_id);
-            while (sent < b.size)
-            {
-                inputFile.read(buffer, chunk_size);
-                send(peer->socket, buffer, sizeof(buffer), 0);
-                pos += chunk_size;
-                inputFile.seekg(pos);
-                sent += chunk_size;
-            }
-            // have
-        }
-        else if(type == "rejected"){ 
-
-            return ; 
         }
     }
     catch (exception &e)
     {
         cout << "excpetion occured in the message handler " << endl;
+        
     }
 
     // and then  a function to see from all the peeras with piece to download
