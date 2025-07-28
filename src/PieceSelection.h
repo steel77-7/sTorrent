@@ -11,7 +11,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <algorithm>
-#include "../../lib/Peerjoin.h"
+#include "Peerjoin.h"
 using namespace std;
 // have a piece
 /*
@@ -27,6 +27,7 @@ private:
     PeerManager *p;
 
 public:
+    void initialize_to_download(int num_pieces);
     vector<string> downloaded;
     PieceManager(PeerManager *p);
     PieceManager();

@@ -6,11 +6,11 @@
 #include <thread>
 #include <string.h>
 #include <cstdlib>
-#include "../../lib/json.hpp"
-#include "../Utils/Peer_id_gen.cpp"
-#include "../Utils/PeerJoinEventHandler.cpp"
-#include "../Utils/Peerjoin.cpp"
-#include "../Utils/PieceSelection.cpp"
+#include "json.hpp"
+#include "Peer_id_gen.cpp"
+#include "PeerJoinEventHandler.cpp"
+#include "Peerjoin.cpp"
+#include "PieceSelection.cpp"
 
 using json = nlohmann::json;
 // #include "../../lib/nlohmann/json.hpp"
@@ -37,7 +37,6 @@ bool isPeerKnown(const vector<peerInfo> &knownPeers, const peerInfo &peer)
 }
 
 vector<peerInfo> peers;
-
 void messageSerializer(string s, Event *add_peer_event, Event *send_request_event)
 {
     try
@@ -46,7 +45,9 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
         if (j["type"] == "join")
         {
             // tw::the peer list alaways renews ....fix it
+            cout<<j["message"]<<endl;
             string str_mess = j["message"];
+            cout << "size of the strimg" << str_mess.size() << endl;
             json mess = json::parse(str_mess);
             vector<peerInfo> peerList = mess.get<vector<peerInfo>>();
 
@@ -61,6 +62,8 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
                     std::thread t2([&]()
                                    { send_request_event->emit(peer); });
                     cout << "exited the listner for now" << endl;
+                    t1.detach();
+                    t2.detach();
                 }
             }
         }
@@ -85,6 +88,7 @@ void read_message(int self_soc, Event *add_peer_event, Event *send_request_event
             return;
         }
         string msg(buffer, val_read);
+        //  cout<<msg<<endl;
         // 500"message :" << msg << endl;
         messageSerializer(msg, add_peer_event, send_request_event);
     }
@@ -197,6 +201,7 @@ int main(int argc, char *argv[])
     sendMessage(soc, Message{true, "join", message});
     thread messageThread([&]()
                          { read_message(soc, &add_peer_event, &send_request_event); });
+    messageThread.detach();
     PieceManager piecemanager(&peermanager);
     peermanager.ps = &piecemanager;
     cout << 2 << endl;
@@ -208,19 +213,20 @@ int main(int argc, char *argv[])
     else
     {
         // tw:: blockiing expresion that woill be cured in the future
+        piecemanager.initialize_to_download(127);
         if (piecemanager.initialPieceSelection())
             piecemanager.rarest_piece_selection();
     }
 
     cout << 3 << endl;
-    messageThread.join();
+    // messageThread.join();
 
     /////////////////***************** */
     // this can be assigned to someother thread
 
     close(soc);
     close(self_soc);
-    messageThread.detach();
+    // messageThread.detach();
     return 0;
 }
 

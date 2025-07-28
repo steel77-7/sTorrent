@@ -1,5 +1,6 @@
-#include "../../lib/Peerjoin.h"
+#include "Peerjoin.h"
 #include <chrono>
+
 using json = nlohmann ::json;
 
 using namespace std;
@@ -35,106 +36,146 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
     sockaddr_in peer_addr;
     socklen_t peer_len = sizeof(peer_addr);
     int soc = socket(AF_INET, SOCK_STREAM, 0);
+    try
+    {
 
-    int peer_soc = accept(*selfsoc, (sockaddr *)&peer_addr, &peer_len);
-    if (peer_soc < 0)
-    {
-        cerr << "peer cant be connected" << endl;
-        return;
-    }
-    // send_request(peer);
-    int val_read = recv(peer_soc, &buffer, sizeof(buffer), 0);
-    if (val_read < 0)
-    {
-        cerr << "empty message" << endl;
-        return;
-    }
-    // someform of message ahndling and then the handlashake will eb done
-    // handlashake logic ko change kr dunga abad mei
-    string msg(buffer, val_read);
-    if (!hand_shake(msg, "hash"))
-    {
-        close(peer_soc);
-        cout << "handshake failed" << endl;
-        return;
-    }
-    cout << "handshake successfull" << endl;
-
-    // sending own hash
-    string tbs = "hash";
-    write(peer_soc, tbs.c_str(), tbs.size());
-    // agr cu
-    if (self_info.peer_id < peer.peer_id)
-    {
-        close(peer_soc);
-        return;
-    }
-    // a lot of bugs but they will be solved
-    peer_map.insert({peer.peer_id, peer});
-
-    message_handler(peer.peer_id);
-
-    for (const auto &[id, peer] : peer_map)
-    {
-        cout << "Connected to peer: " << id << endl;
-        vector<string> piece_ids;
-        for (const auto p : ps->downloaded)
+        int peer_soc = accept(*selfsoc, (sockaddr *)&peer_addr, &peer_len);
+        if (peer_soc < 0)
         {
-            piece_ids.push_back(p);
+            cerr << "peer cant be connected" << endl;
+            return;
         }
-        json j = piece_ids;
-        sendMessage(Message{true, "have", j.dump()}, soc);
+        // send_request(peer);
+        int val_read = recv(peer_soc, &buffer, sizeof(buffer), 0);
+        if (val_read < 0)
+        {
+            cerr << "empty message" << endl;
+            return;
+        }
+        // someform of message ahndling and then the handlashake will eb done
+        // handlashake logic ko change kr dunga abad mei
+        string msg(buffer, val_read);
+        if (!hand_shake(msg, "hash"))
+        {
+            close(peer_soc);
+            cout << "handshake failed" << endl;
+            return;
+        }
+        cout << "handshake successfull" << endl;
+
+        // sending own hash
+        string tbs = "hash";
+        write(peer_soc, tbs.c_str(), tbs.size());
+        // agr cu
+        if (self_info.peer_id < peer.peer_id)
+        {
+            close(peer_soc);
+            cout << "Connection closed form this side :" << peer.peer_id << endl;
+            return;
+        }
+        // addign the peer vals ;
+        peer.socket = peer_soc;
+        cout<<"socket fd in add request"<<peer.socket<<endl; 
+
+        // a lot of bugs but they will be solved
+        peer_map.insert({peer.peer_id, peer});
+
+        message_handler(peer.peer_id);
+
+        for (const auto &[id, peer] : peer_map)
+        {
+            cout << "Connected to peer: " << id << endl;
+            vector<string> piece_ids;
+            if (ps->downloaded.size() == 0)
+            {
+                cout << "Downloaded pieces empty" << endl;
+                return;
+            }
+            for (const auto p : ps->downloaded)
+            {
+                piece_ids.push_back(p);
+            }
+            json j = piece_ids;
+            sendMessage(Message{true, "have", j.dump()}, soc);
+        }
+    }
+    catch (exception &e)
+    {
+        cout << "error in add peer" << endl;
     }
 }
 
 void PeerManager::send_request(peerInfo peer)
 {
 
-    char buffer[1024];
-    sockaddr_in peer_addr;
-    socklen_t peer_len = sizeof(peer_addr);
-    peer_addr.sin_family = AF_INET;
-    peer_addr.sin_addr.s_addr = INADDR_ANY;
-    peer_addr.sin_port = htons(peer.port);
-    int soc = socket(AF_INET, SOCK_STREAM, 0);
+    try
+    {
 
-    int peer_soc = connect(soc, (sockaddr *)&peer_addr, peer_len);
+        char buffer[1024];
+        sockaddr_in peer_addr;
+        socklen_t peer_len = sizeof(peer_addr);
+        peer_addr.sin_family = AF_INET;
+        peer_addr.sin_addr.s_addr = INADDR_ANY;
+        peer_addr.sin_port = htons(peer.port);
+        int soc = socket(AF_INET, SOCK_STREAM, 0);
 
-    if (peer_soc < 0)
-    {
-        cerr << "couldnt connect the peer" << endl;
-        return;
-    }
-    string tbs = "hash";
-    write(soc, tbs.c_str(), tbs.size()); // if the handshake will fail then close the connection
-    int val_read = recv(soc, &buffer, sizeof(buffer), 0);
-    int count = 0;
-again:
-    if (val_read < 0)
-    {
-        count++;
-        if (count < 10)
-            goto again;
-        cerr << "handshake empty" << endl;
-        return;
-    }
+        int peer_soc = connect(soc, (sockaddr *)&peer_addr, peer_len);
 
-    if (self_info.peer_id < peer.peer_id)
-    {
-        close(peer_soc);
-        return;
+        if (peer_soc < 0)
+        {
+            cerr << "couldnt connect the peer" << endl;
+            return;
+        }
+        string tbs = "hash";
+        write(soc, tbs.c_str(), tbs.size()); // if the handshake will fail then close the connection
+        int val_read = recv(soc, &buffer, sizeof(buffer), 0);
+        int count = 0;
+    again:
+        if (val_read < 0)
+        {
+            count++;
+            if (count < 10)
+                goto again;
+            cerr << "handshake empty" << endl;
+            return;
+        }
+
+        if (self_info.peer_id < peer.peer_id)
+        {
+            close(soc);
+            return;
+        }
+        // or just push all this logic into a message handler
+        string msg(buffer, val_read);
+        cout << "handshake string ::" << msg << endl;
+        if (!hand_shake(msg, "hash"))
+        {
+            cerr << "handshake failed" << endl;
+            close(peer_soc);
+            return;
+        }
+        peer.socket = soc;
+        cout<<"socket fd in send request"<<peer.socket<<soc<<endl; 
+        peer_map.insert({peer.peer_id, peer});
+        message_handler(peer.peer_id);
+        vector<string> piece_ids;
+        if (ps->downloaded.size() == 0)
+        {
+            cout << "Downloaded pieces empty" << endl;
+            return;
+        }
+        for (const auto p : ps->downloaded)
+        {
+            piece_ids.push_back(p);
+        }
+        json j = piece_ids;
+        sendMessage(Message{true, "have", j.dump()}, soc);
+        cout << "handshake successfull" << endl;
     }
-    // or just push all this logic into a message handler
-    string msg(buffer, val_read);
-    cout << "handshake string ::" << msg << endl;
-    if (!hand_shake(msg, "hash"))
+    catch (exception &e)
     {
-        cerr << "handshake failed" << endl;
-        close(peer_soc);
-        return;
+        cout << "error in send request" << endl;
     }
-    peer_map.insert({peer.peer_id, peer});
-    cout << "handshake successfull" << endl;
 }
 
 // this iwll be done after the connection is made if false the the connnection will be severed
@@ -154,19 +195,59 @@ void PeerManager::message_handler(string peer_id)
     {
         while (true)
         {
-
+            cout<<"peer in message handler"<<peer_id<<endl;
             peerInfo *p = get_peer(peer_id);
             int soc = p->socket;
 
             int val = recv(soc, buffer, sizeof(buffer), 0);
-            string msg(buffer, val);
+            cout << "in the message handler val :" << val << " " << soc << endl;
+            if (val <= 0)
+            {
+                cout << "Connection closed or error" << peer_id << endl;
+                // close(soc);
+                return;
+            }
+            buffer[val] = '\0'; // Null-terminate the buffer
+            string msg(buffer);
             json j = json::parse(msg);
-
             Message m = j.get<Message>();
             cout << "Message from peer :" << peer_id << m.message << endl;
             // yaha pe mostly piece related loigc lagega
             string type = m.type;
             cout << "Message type" << m.type << endl;
+            try
+            {
+                /*  json j = json::parse(msg);
+                 Message m = j.get<Message>(); */
+                cout << "Message from peer:" << peer_id << m.message << endl;
+                string type = m.type;
+                cout << "Message type:" << type << endl;
+
+                if (type == "have")
+                {
+                    // do something
+                    vector<string> pieceList = json::parse(m.message);
+                    for (const string &piece : pieceList)
+                    {
+                        if (!pieceMap.count(piece))
+                        {
+                            set<peerInfo *> peers = {get_peer(peer_id)};
+                            pieceMap.insert({piece, peers});
+                        }
+                    }
+                }
+            }
+            catch (const json::parse_error &e)
+            {
+                cout << "JSON parse error: " << e.what() << endl;
+                continue;
+            }
+            catch (const exception &e)
+            {
+                cout << "Error processing message: " << e.what() << endl;
+                continue;
+            }
+
             if (type == "have")
             {
                 // do somethin
@@ -237,8 +318,7 @@ void PeerManager::message_handler(string peer_id)
     }
     catch (exception &e)
     {
-        cout << "excpetion occured in the message handler " << endl;
-        
+        cout << "excpetion occured in the message handler " << e.what() << endl;
     }
 
     // and then  a function to see from all the peeras with piece to download
@@ -284,10 +364,10 @@ void PeerManager::sendMessage(Message m, int soc)
 {
     json j = json{{"type", m.type}, {"success", m.success}, {"message", m.message}};
     string tbs = j.dump();
-    if (send(soc, tbs.c_str(), sizeof(tbs), 0) < 0)
+    if (send(soc, tbs.c_str(), tbs.size(), 0) < 0)
     {
         cerr << "failed to send message" << endl;
-        return;
+        exit(0);
     }
 }
 

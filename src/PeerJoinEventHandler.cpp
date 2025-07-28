@@ -1,4 +1,4 @@
-#include "../../lib/PeerJoinEventHandler.h"
+#include "PeerJoinEventHandler.h"
 using ListenerID = int;
 using Listener = function<void(peerInfo)>;
 

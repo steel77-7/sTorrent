@@ -4,6 +4,22 @@
 // #include "Peerjoin.cpp"
 #include <chrono>
 using namespace std;
+
+void PieceManager::initialize_to_download(int num_pieces)
+{
+    cout << "initialize downalad" << endl;
+    to_download.clear();
+    for (int i = 1; i <= num_pieces; ++i)
+    {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%03d.tmp", i);
+        Piece piece;
+        piece.piece_id = string(buf);
+        piece.status = "not_downloading";
+        to_download.push_back(piece);
+    }
+}
+
 PieceManager::PieceManager(PeerManager *p)
 {
     cout << "in the piece manager CONSTRUCTOR" << endl;
@@ -16,10 +32,10 @@ PieceManager::PieceManager()
 
 bool PieceManager::initialPieceSelection()
 {
-    cout << p << endl;
+    cout << "downaload list size" << to_download.size() << endl;
     while (downloaded.size() > 5)
     {
-        int low = 0;
+        int low = 0; 
         int high = to_download.size();
         random_device rd;
         mt19937 gen(rd());
@@ -30,6 +46,7 @@ bool PieceManager::initialPieceSelection()
         }
         uniform_int_distribution<> distrib(low, high - 1);
         int ran = distrib(gen);
+        cout<<"tow downalod : "<<to_download[ran].piece_id<<endl; 
         p->downloadHandler(to_download[ran], &PieceManager::downloader, this);
         // tw::what if the
         to_download.erase(to_download.begin() + ran);

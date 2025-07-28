@@ -1,6 +1,6 @@
-#include "../lib/tracker.h"
+#include "tracker.h"
 #include "JoinHandler.cpp"
-#include "../Client/Utils/JSONSerializer.cpp"
+#include "JSONSerializer.cpp"
 using json = nlohmann::json;
 
 string self_info_hash = "the_super_secret_hash";

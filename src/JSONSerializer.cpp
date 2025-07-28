@@ -1,4 +1,4 @@
-#include "../../lib/JSONSerializer.h"
+#include "JSONSerializer.h"
 #pragma once
 using namespace std;
 using json = nlohmann ::json;

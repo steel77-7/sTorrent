@@ -3,3 +3,5 @@ bin/
 json.hpp
 test/
 test.txt
+tracker
+Client

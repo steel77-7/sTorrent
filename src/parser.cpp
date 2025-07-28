@@ -1,4 +1,4 @@
-#include "../lib/parser.h"
+#include "parser.h"
 
 
 class Bencodingparser

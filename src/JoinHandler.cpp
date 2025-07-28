@@ -1,4 +1,4 @@
-#include "../lib/Event.h"
+#include "Event.h"
 using namespace std;
 using Listener = function<void(peerInfo)>;
 using ListenerID = int;

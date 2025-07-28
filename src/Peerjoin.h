@@ -2,6 +2,7 @@
 #define PEER_MANAGER_H
 #include <iostream>
 #include <unordered_map>
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -14,7 +15,7 @@
 #include <unordered_map>
 #include "PeerJoinEventHandler.h"
 #include "JSONSerializer.h"
-#include "../Client/Utils/PieceSelection.h"
+#include "PieceSelection.h"
 
 using namespace std;
 
