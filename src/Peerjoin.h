@@ -10,7 +10,9 @@
 #include <cstring>
 #include <fstream>
 #include <vector>
+#include <thread>
 #include <set>
+#include <mutex>
 #include <openssl/sha.h>
 #include <unordered_map>
 #include "PeerJoinEventHandler.h"

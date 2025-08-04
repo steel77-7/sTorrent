@@ -18,7 +18,6 @@ Peer::Peer(int client_socket, socklen_t client_addr_len, sockaddr_in *client_add
 
 MessageType Peer::peerMessageSerializer(string s)
 {
-    cout << "peer message seriLIER" << endl;
     json j = json::parse(s);
     json mess;
     if ( j["type"] == "join")
@@ -73,9 +72,6 @@ void Peer::ConnectionHanlder()
             break;
         }
         peerMessageSerializer(m);
-        cout << "inside the connection loop\n"
-             << endl;
-        cout << "Curr thread : " << this_thread::get_id() << endl;
     }
     cout << "closed" << endl;
     close(client_socket);
@@ -88,7 +84,6 @@ json arr_j = json ::array();
 void update_peer_list(peerInfo info)
 {
     // json j;
-    cout << "update per list" << endl;
     peerList.push_back(info); // list is updated no to send it
 
     for (auto &p : peerList)
@@ -100,8 +95,6 @@ void update_peer_list(peerInfo info)
              << p.peer_id << endl;
     }
     string updated_list = arr_j.dump();
-    cout << updated_list << endl;
-    cout << "updation" << endl;
     for (auto &[id, peer] : connections)
     {
 

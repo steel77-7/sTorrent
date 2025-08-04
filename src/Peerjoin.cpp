@@ -17,6 +17,8 @@ using Clock = std::chrono::steady_clock;
 } */
 
 // unordered_map<string, int> PeerManager::peer_map;
+
+std::mutex mtx;
 PeerManager::PeerManager(int *soc, peerInfo p, bool seed)
 {
     selfsoc = soc;
@@ -32,6 +34,7 @@ peerInfo *PeerManager::get_peer(string peer_id)
 // change these cause everytie they connect they will have a new peer info
 void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connection request
 {
+    // std::lock_guard<std::mutex> lock(mtx);
     char buffer[1024];
     sockaddr_in peer_addr;
     socklen_t peer_len = sizeof(peer_addr);
@@ -47,9 +50,9 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
         }
         // send_request(peer);
         int val_read = recv(peer_soc, &buffer, sizeof(buffer), 0);
-        if (val_read < 0)
+        if (val_read <= 0)
         {
-            cerr << "empty message" << endl;
+            cerr << "Empty handshake message :" << val_read << endl;
             return;
         }
         // someform of message ahndling and then the handlashake will eb done
@@ -58,46 +61,46 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
         if (!hand_shake(msg, "hash"))
         {
             close(peer_soc);
-            cout << "handshake failed" << endl;
+            cout << "Handshake failed" << endl;
             return;
         }
-        cout << "handshake successfull" << endl;
+        cout << "Handshake successfull with :" << peer.peer_id << endl;
 
+        peer.socket = peer_soc;
+        cout << "Socket fd in add request : " << peer.socket << endl;
         // sending own hash
         string tbs = "hash";
         write(peer_soc, tbs.c_str(), tbs.size());
-        // agr cu
         if (self_info.peer_id < peer.peer_id)
         {
+            cout << "Connection closed form this side (add peer):" << peer.peer_id << endl;
             close(peer_soc);
-            cout << "Connection closed form this side :" << peer.peer_id << endl;
             return;
         }
         // addign the peer vals ;
-        peer.socket = peer_soc;
-        cout<<"socket fd in add request"<<peer.socket<<endl; 
 
         // a lot of bugs but they will be solved
         peer_map.insert({peer.peer_id, peer});
 
-        message_handler(peer.peer_id);
-
+        // create a new  thread for now
+        std::thread thread_messages(&PeerManager::message_handler, this, peer.peer_id);
+        //  message_handler(peer.peer_id);
+        thread_messages.detach();
         for (const auto &[id, peer] : peer_map)
         {
-            cout << "Connected to peer: " << id << endl;
-            vector<string> piece_ids;
-            if (ps->downloaded.size() == 0)
-            {
-                cout << "Downloaded pieces empty" << endl;
-                return;
-            }
-            for (const auto p : ps->downloaded)
-            {
-                piece_ids.push_back(p);
-            }
-            json j = piece_ids;
-            sendMessage(Message{true, "have", j.dump()}, soc);
+            cout << "Connected to peer: " << id << " " << peer_map.size() << endl;
         }
+        vector<string> piece_ids;
+        if (ps->downloaded.size() == 0)
+        {
+            cout << "Downloaded pieces empty" << endl;
+        }
+        for (const auto p : ps->downloaded)
+        {
+            piece_ids.push_back(p);
+        }
+        json j = piece_ids;
+        sendMessage(Message{true, "have", j.dump()}, peer_soc);
     }
     catch (exception &e)
     {
@@ -107,6 +110,7 @@ void PeerManager::add_peer(peerInfo peer) // thsi will eb for an incoming connec
 
 void PeerManager::send_request(peerInfo peer)
 {
+    // std::lock_guard<std::mutex> lock(mtx);
 
     try
     {
@@ -140,8 +144,10 @@ void PeerManager::send_request(peerInfo peer)
             return;
         }
 
-        if (self_info.peer_id < peer.peer_id)
+        if (self_info.peer_id > peer.peer_id)
         {
+            cout << "Connection closed from this side (send request): " << peer.peer_id << endl;
+
             close(soc);
             return;
         }
@@ -154,15 +160,23 @@ void PeerManager::send_request(peerInfo peer)
             close(peer_soc);
             return;
         }
+        cout << "Handshake successfull with :" << peer.peer_id << endl;
         peer.socket = soc;
-        cout<<"socket fd in send request"<<peer.socket<<soc<<endl; 
+        cout << "Socket fd in send request : " << peer.socket << endl;
+        std::thread thread_messages(&PeerManager::message_handler, this, peer.peer_id);
+
+        //  message_handler(peer.peer_id);
+        thread_messages.detach();
         peer_map.insert({peer.peer_id, peer});
         message_handler(peer.peer_id);
+        for (const auto &[id, peer] : peer_map)
+        {
+            cout << "Connected to peer: " << id << " " << peer_map.size() << endl;
+        }
         vector<string> piece_ids;
         if (ps->downloaded.size() == 0)
         {
             cout << "Downloaded pieces empty" << endl;
-            return;
         }
         for (const auto p : ps->downloaded)
         {
@@ -170,7 +184,6 @@ void PeerManager::send_request(peerInfo peer)
         }
         json j = piece_ids;
         sendMessage(Message{true, "have", j.dump()}, soc);
-        cout << "handshake successfull" << endl;
     }
     catch (exception &e)
     {
@@ -195,15 +208,15 @@ void PeerManager::message_handler(string peer_id)
     {
         while (true)
         {
-            cout<<"peer in message handler"<<peer_id<<endl;
+            cout << "Peer in message handler" << peer_id << endl;
             peerInfo *p = get_peer(peer_id);
             int soc = p->socket;
 
             int val = recv(soc, buffer, sizeof(buffer), 0);
-            cout << "in the message handler val :" << val << " " << soc << endl;
+            cout << "Size of message and the socket fd in Mess_hand :" << val << " " << soc << endl;
             if (val <= 0)
             {
-                cout << "Connection closed or error" << peer_id << endl;
+                cout << "Message handler: message size error from peer: " << peer_id << endl;
                 // close(soc);
                 return;
             }
@@ -211,46 +224,27 @@ void PeerManager::message_handler(string peer_id)
             string msg(buffer);
             json j = json::parse(msg);
             Message m = j.get<Message>();
-            cout << "Message from peer :" << peer_id << m.message << endl;
+            cout << "Message from peer :\t\t" << peer_id << m.message << endl;
             // yaha pe mostly piece related loigc lagega
             string type = m.type;
             cout << "Message type" << m.type << endl;
-            try
+            cout<< "Message : "<<m.message<<endl;
+            if (type == "have")
             {
-                /*  json j = json::parse(msg);
-                 Message m = j.get<Message>(); */
-                cout << "Message from peer:" << peer_id << m.message << endl;
-                string type = m.type;
-                cout << "Message type:" << type << endl;
-
-                if (type == "have")
+                // do something
+                vector<string> pieceList = json::parse(m.message);
+                for (const string &piece : pieceList)
                 {
-                    // do something
-                    vector<string> pieceList = json::parse(m.message);
-                    for (const string &piece : pieceList)
+                    if (!pieceMap.count(piece))
                     {
-                        if (!pieceMap.count(piece))
-                        {
-                            set<peerInfo *> peers = {get_peer(peer_id)};
-                            pieceMap.insert({piece, peers});
-                        }
+                        set<peerInfo *> peers = {get_peer(peer_id)};
+                        pieceMap.insert({piece, peers});
                     }
                 }
-            }
-            catch (const json::parse_error &e)
-            {
-                cout << "JSON parse error: " << e.what() << endl;
-                continue;
-            }
-            catch (const exception &e)
-            {
-                cout << "Error processing message: " << e.what() << endl;
-                continue;
             }
 
             if (type == "have")
             {
-                // do somethin
                 vector<string> pieceList = json::parse(m.message);
                 for (const string &piece : pieceList)
                 {
@@ -273,7 +267,7 @@ void PeerManager::message_handler(string peer_id)
                 // interested in a piece or connecting
                 // setup some logic to check for the right candidate
                 // and then
-
+                cout << "Interested peer : " << peer_id << endl;
                 peerInfo *peer = get_peer(peer_id);
                 // tw::another condition to check the other choking and unchoking criteria of the peers
                 if (choke_map.size() >= 5)
@@ -289,9 +283,9 @@ void PeerManager::message_handler(string peer_id)
 
             else if (type == "request")
             { // requested piece
-
                 json mess = json::parse(m.message);
                 block b = mess.get<block>();
+                cout << "Requested piece :" << b.piece_id << endl;
                 ifstream inputFile(b.piece_id + "tmp", ios::binary | ios::trunc);
                 inputFile.seekg(b.offset);
                 int sent = 0;
@@ -302,7 +296,8 @@ void PeerManager::message_handler(string peer_id)
                 while (sent < b.size)
                 {
                     inputFile.read(buffer, chunk_size);
-                    send(peer->socket, buffer, sizeof(buffer), 0);
+                    sendMessage(Message{true, "data" , buffer} , soc); 
+                    //send(peer->socket, buffer, sizeof(buffer), 0);
                     pos += chunk_size;
                     inputFile.seekg(pos);
                     sent += chunk_size;
@@ -311,8 +306,11 @@ void PeerManager::message_handler(string peer_id)
             }
             else if (type == "rejected")
             {
-
+                cout << "Request rejected from peer : " << peer_id << endl;
                 return;
+            }
+            else if(type == "data"){ 
+                ps->downloader()
             }
         }
     }
@@ -327,12 +325,14 @@ void PeerManager::message_handler(string peer_id)
 // error prone
 void PeerManager::downloadHandler(Piece piece, void (PieceManager::*downloader)(string pieceid, block *block_info, int soc), PieceManager *pm)
 {
+  //  cout << "DOWNLOAD \t HANDLER" << endl;
     char buffer[1024] = {0};
     vector<block> b = piece.blocks;
     set<peerInfo *> peerList = pieceMap[piece.piece_id];
     int i = 0;
     for (const auto &p : peerList)
     {
+        cout << "Sending interested message to the peer : " << p->peer_id << endl;
         sendMessage(Message{true, "interested", ""}, p->socket);
         // error line
         int len = recv(p->socket, buffer, sizeof(buffer), 0);
@@ -353,8 +353,9 @@ void PeerManager::downloadHandler(Piece piece, void (PieceManager::*downloader)(
             {"offset", b[i].offset},
             {"size", b[i].size},
         };
+        cout << "Sending requested piece " << piece.piece_id << "to peer :<< " << p->peer_id << endl;
         sendMessage(Message{true, "request", j.dump()}, p->socket);
-        (pm->downloader)(piece.piece_id, &b[i], p->socket);
+       // (pm->downloader)(piece.piece_id, &b[i], p->socket);
         i++;
         // make logic for re-requesting
     }
@@ -362,8 +363,15 @@ void PeerManager::downloadHandler(Piece piece, void (PieceManager::*downloader)(
 
 void PeerManager::sendMessage(Message m, int soc)
 {
+    std::lock_guard<std::mutex> lock(mtx);
+    cout << "Message being sent : " << m.type << endl;
     json j = json{{"type", m.type}, {"success", m.success}, {"message", m.message}};
     string tbs = j.dump();
+    if (soc <= 0)
+    {
+        cerr << "Socket closed: " << soc << endl;
+        return;
+    }
     if (send(soc, tbs.c_str(), tbs.size(), 0) < 0)
     {
         cerr << "failed to send message" << endl;
@@ -431,7 +439,7 @@ void PeerManager::optimistic_unchoke()
 
 void PeerManager::seeder()
 {
-    cout << "Splitting the file" << endl;
+    cout << "Splitting the file";
     ifstream infile("test.txt", ios::binary);
     int size = 8192;
     int index = 0;
@@ -442,6 +450,9 @@ void PeerManager::seeder()
         streamsize read_size = infile.gcount();
         std::ostringstream filename;
         filename << "test/" << std::setw(3) << std::setfill('0') << index++ << ".tmp";
+        string name = filename.str();
+        cout<<name<<endl;
+        ps->downloaded.push_back(name.substr(5));
         if (read_size > 0)
         {
             buffer.resize(read_size);
@@ -451,5 +462,5 @@ void PeerManager::seeder()
             out.close();
         }
     }
-    cout << "FILE DONEEEEEEEEEEEEEEEEEEEEEEEEEE" << endl;
+    cout << "\rFile Divied into pieces by the seeder" << endl;
 }

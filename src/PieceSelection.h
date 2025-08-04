@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <random>
 #include <fstream>
+#include <mutex>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>

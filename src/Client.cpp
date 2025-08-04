@@ -61,7 +61,7 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
 
                     std::thread t2([&]()
                                    { send_request_event->emit(peer); });
-                    cout << "exited the listner for now" << endl;
+                  //  cout << "exited the listner for now" << endl;
                     t1.detach();
                     t2.detach();
                 }
@@ -74,6 +74,8 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
     }
 }
 
+
+//this is just the event listenener for the tracker 
 void read_message(int self_soc, Event *add_peer_event, Event *send_request_event)
 {
     cout << "read messgae" << endl;
@@ -88,12 +90,11 @@ void read_message(int self_soc, Event *add_peer_event, Event *send_request_event
             return;
         }
         string msg(buffer, val_read);
-        //  cout<<msg<<endl;
-        // 500"message :" << msg << endl;
         messageSerializer(msg, add_peer_event, send_request_event);
     }
 }
 
+//for the tracker messages
 void sendMessage(int s_socket, Message message)
 {
     json j = json{
@@ -101,18 +102,7 @@ void sendMessage(int s_socket, Message message)
         {"type", message.type},
         {"message", message.message}};
     string tbs = j.dump();
-    //   cout << "send message" << tbs << endl;
     write(s_socket, tbs.c_str(), tbs.size());
-}
-
-void accept_connection(int peer_soc)
-{
-    char buffer[1024];
-    while (int rec = recv(peer_soc, &buffer, sizeof(buffer), 0))
-    {
-        cout << "curr thread" << this_thread::get_id() << endl;
-    }
-    close(peer_soc);
 }
 
 int main(int argc, char *argv[])
@@ -126,9 +116,6 @@ int main(int argc, char *argv[])
     cout << "Enter the seeder val" << endl;
 
     cin >> seeder;
-    // Event e;
-    std::cout << "Self Port: " << self_port << std::endl;
-    std::cout << "Seeder: " << seeder << std::endl;
 
     Event add_peer_event;
     Event send_request_event;
@@ -139,14 +126,12 @@ int main(int argc, char *argv[])
     // initializing socket variables
     address.sin_family = AF_INET;
     address.sin_port = htons((int)PORT);
-    // cout<<1<<endl;
     // address.sin_addr.s_addr = inet_addr(SERVER_EP);
     if (inet_pton(AF_INET, SERVER_EP, &address.sin_addr) <= 0)
     {
         cerr << "Invalid address/ Address not supported" << endl;
         return -1;
     }
-    // cout<<2<<endl;
     int soc = socket(AF_INET, SOCK_STREAM, 0);
     if (soc < 0)
     {
@@ -164,7 +149,6 @@ int main(int argc, char *argv[])
         cout << n << endl;
         return 1;
     }
-    //  cout<<3<<endl;
     int self_soc = socket(AF_INET, SOCK_STREAM, 0);
     sockaddr_in self_address;
     memset(&self_address, 0, sizeof(self_address));
@@ -175,7 +159,6 @@ int main(int argc, char *argv[])
     if (bind(self_soc, (sockaddr *)&self_address, sizeof(self_address)) < 0)
     {
         cerr << "failed to bind to a port" << endl;
-
         return 1;
     }
 
@@ -195,16 +178,13 @@ int main(int argc, char *argv[])
     int add_peer_eventid = add_peer_event.subscribe([&peermanager](peerInfo p)
                                                     { peermanager.add_peer(p); });
 
-    cout << "after the peer manager" << endl;
     int send_request_eventid = send_request_event.subscribe([&peermanager](peerInfo p)
                                                             { peermanager.send_request(p); });
     sendMessage(soc, Message{true, "join", message});
     thread messageThread([&]()
                          { read_message(soc, &add_peer_event, &send_request_event); });
-    messageThread.detach();
     PieceManager piecemanager(&peermanager);
     peermanager.ps = &piecemanager;
-    cout << 2 << endl;
     if (seeder == 1)
     {
         cout << "seeder processes" << endl;
@@ -218,8 +198,7 @@ int main(int argc, char *argv[])
             piecemanager.rarest_piece_selection();
     }
 
-    cout << 3 << endl;
-    // messageThread.join();
+    messageThread.join();
 
     /////////////////***************** */
     // this can be assigned to someother thread

@@ -5,8 +5,10 @@
 #include <chrono>
 using namespace std;
 
+std::mutex m ;
 void PieceManager::initialize_to_download(int num_pieces)
 {
+    std::lock_guard<std::mutex> init_lock(m);
     cout << "initialize downalad" << endl;
     to_download.clear();
     for (int i = 1; i <= num_pieces; ++i)
@@ -32,10 +34,10 @@ PieceManager::PieceManager()
 
 bool PieceManager::initialPieceSelection()
 {
-    cout << "downaload list size" << to_download.size() << endl;
-    while (downloaded.size() > 5)
+    cout << "To download size : " << to_download.size() << endl;
+    while (downloaded.size() < 5)
     {
-        int low = 0; 
+        int low = 0;
         int high = to_download.size();
         random_device rd;
         mt19937 gen(rd());
@@ -46,8 +48,9 @@ bool PieceManager::initialPieceSelection()
         }
         uniform_int_distribution<> distrib(low, high - 1);
         int ran = distrib(gen);
-        cout<<"tow downalod : "<<to_download[ran].piece_id<<endl; 
-        p->downloadHandler(to_download[ran], &PieceManager::downloader, this);
+        cout << "Piece to be downloaded : " << to_download[ran].piece_id << endl;
+        std::thread download_thread(&PeerManager::downloadHandler, p, to_download[ran], &PieceManager::downloader, this);
+        download_thread.detach(); // Detach thread to run independently
         // tw::what if the
         to_download.erase(to_download.begin() + ran);
     }
@@ -88,7 +91,7 @@ void PieceManager::rarest_piece_selection() // depedning upono the rearest fist
             p->downloadHandler(to_download[distance(to_download.begin(), download_index)], &PieceManager::downloader, this);
         to_download.erase(download_index); */
         int download_index = find_index(to_download, p_ids[index]);
-
+        cout << "Piece to be downloaded : " << to_download[download_index].piece_id << endl;
         if (download_index != -1)
             p->downloadHandler(to_download[download_index], &PieceManager::downloader, this);
         to_download.erase(to_download.begin() + download_index);
@@ -110,7 +113,7 @@ void PieceManager::downloader(string pieceid, block *block_info, int soc)
 
     // make a file first
     cout << "Download started for file : " << pieceid << endl;
-    fstream outPutFile(pieceid + ".tmp", ios::binary);
+    fstream outPutFile("down"+pieceid + ".tmp", ios::binary);
     int lenght_of_block = block_info->size;
     int chunk_size = 1024;
     int downloaded_files = 0;
@@ -168,4 +171,8 @@ void PieceManager::downloader(string pieceid, block *block_info, int soc)
     in blocks
     chunks
     */
+}
+
+void PieceManager::save_file(){ 
+    
 }
