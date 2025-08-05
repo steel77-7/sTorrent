@@ -40,12 +40,20 @@ struct Message
     string type;
     string message;
 };
+struct send_file
+{
+    block block_info;
+    string data;
+};
 
 void from_json(const json &j, peerInfo &p);
-void to_json(json &j, peerInfo p);
+void to_json(json &j, const Message &m);
+void to_json(json &j,  peerInfo p);
 void from_json(const json &j, Message &m);
-void to_json(json &j, Message &m);
+void to_json(json &j, const Message &m);
 void from_json(const json &j, block &b);
-void to_json(json &j, block &b);
+void to_json(json &j,const block &b);
+void from_json(const json &j, send_file &b);
+void to_json(json &j, const send_file &b);
 
 #endif

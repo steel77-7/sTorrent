@@ -203,7 +203,7 @@ bool PeerManager::hand_shake(string str, string local_hash)
 // do do kyu use krne
 void PeerManager::message_handler(string peer_id)
 {
-    char buffer[1024];
+    char buffer[8192];
     try
     {
         while (true)
@@ -221,27 +221,29 @@ void PeerManager::message_handler(string peer_id)
                 return;
             }
             buffer[val] = '\0'; // Null-terminate the buffer
-            string msg(buffer);
+            string msg(buffer,val);
+            cout << "Message from peer :\t\t" << peer_id << msg << endl;
+
             json j = json::parse(msg);
             Message m = j.get<Message>();
-            cout << "Message from peer :\t\t" << peer_id << m.message << endl;
+            // cout << "Message from peer :\t\t" << peer_id << m.message << endl;
             // yaha pe mostly piece related loigc lagega
             string type = m.type;
             cout << "Message type" << m.type << endl;
-            cout<< "Message : "<<m.message<<endl;
-            if (type == "have")
-            {
-                // do something
-                vector<string> pieceList = json::parse(m.message);
-                for (const string &piece : pieceList)
-                {
-                    if (!pieceMap.count(piece))
-                    {
-                        set<peerInfo *> peers = {get_peer(peer_id)};
-                        pieceMap.insert({piece, peers});
-                    }
-                }
-            }
+            cout << "Message : " << m.message << endl;
+            /*   if (type == "have")
+              {
+                  // do something
+                  vector<string> pieceList = json::parse(m.message);
+                  for (const string &piece : pieceList)
+                  {
+                      if (!pieceMap.count(piece))
+                      {
+                          set<peerInfo *> peers = {get_peer(peer_id)};
+                          pieceMap.insert({piece, peers});
+                      }
+                  }
+              } */
 
             if (type == "have")
             {
@@ -296,8 +298,8 @@ void PeerManager::message_handler(string peer_id)
                 while (sent < b.size)
                 {
                     inputFile.read(buffer, chunk_size);
-                    sendMessage(Message{true, "data" , buffer} , soc); 
-                    //send(peer->socket, buffer, sizeof(buffer), 0);
+                    sendMessage(Message{true, "data", buffer}, soc);
+                    // send(peer->socket, buffer, sizeof(buffer), 0);
                     pos += chunk_size;
                     inputFile.seekg(pos);
                     sent += chunk_size;
@@ -309,8 +311,12 @@ void PeerManager::message_handler(string peer_id)
                 cout << "Request rejected from peer : " << peer_id << endl;
                 return;
             }
-            else if(type == "data"){ 
-                ps->downloader()
+            else if (type == "data")
+            {
+                json file_data = json::parse(m.message);
+                send_file file = file_data.get<send_file>();
+                ps->downloader(file.block_info.piece_id, file.block_info, file.data);
+                //  ps->downloader()
             }
         }
     }
@@ -323,39 +329,62 @@ void PeerManager::message_handler(string peer_id)
 }
 
 // error prone
-void PeerManager::downloadHandler(Piece piece, void (PieceManager::*downloader)(string pieceid, block *block_info, int soc), PieceManager *pm)
+// void PeerManager::downloadHandler(Piece piece, void (PieceManager::*downloader)(string pieceid, block *block_info, int soc), PieceManager *pm)
+void PeerManager::downloadHandler(Piece piece)
+
 {
-  //  cout << "DOWNLOAD \t HANDLER" << endl;
+    //  cout << "DOWNLOAD \t HANDLER" << endl;
     char buffer[1024] = {0};
-    vector<block> b = piece.blocks;
+    vector<block> b = piece.blocks;//this is empty rn
+    // Ensure pieceMap is up to date for all peers
+    cout<<"[DEBUG] NUmber of blocks in piece :" <<piece.piece_id <<'\t'<<piece.blocks.size()<<endl; 
+    if (pieceMap[piece.piece_id].empty())
+    {
+      //  cout << "[DEBUG] pieceMap for piece " << piece.piece_id << " is empty. Populating with all known peers." << endl;
+        for (auto &kv : peer_map)
+        {
+            peerInfo *peer_ptr = &kv.second;
+            pieceMap[piece.piece_id].insert(peer_ptr);
+          //  cout << "[DEBUG] Added peer " << peer_ptr->peer_id << " to pieceMap for piece " << piece.piece_id << endl;
+        }
+    }
     set<peerInfo *> peerList = pieceMap[piece.piece_id];
+  //  cout << "[DEBUG] Peers for piece " << piece.piece_id << ": ";
+    for (const auto &p : peerList)
+        cout << p->peer_id << " ";
+    cout << endl;
     int i = 0;
     for (const auto &p : peerList)
     {
+        if (i >= b.size())
+        {
+        //    cout << "[WARNING] More peers than blocks. Skipping extra peers." << endl;
+            break;
+        }
         cout << "Sending interested message to the peer : " << p->peer_id << endl;
         sendMessage(Message{true, "interested", ""}, p->socket);
-        // error line
-        int len = recv(p->socket, buffer, sizeof(buffer), 0);
-        if (len < 0)
-        {
-            cerr << "not interested" << endl;
-            return;
-        }
-        string msg(buffer, len);
-        if (msg != "accepted")
-        {
-            cout << "not accepted" << endl;
-            return;
-        }
+        /*   int len = recv(p->socket, buffer, sizeof(buffer), 0);
+          if (len < 0)
+          {
+              cerr << "not interested" << endl;
+              continue;
+          }
+          string msg(buffer, len);
+          json str = json::parse(msg) ;
 
+          cout<<"Message after interested: "<<msg<<endl;
+          if (str["type"] != "accepted")
+          {
+              cout << "not accepted" << endl;
+              continue;
+          } */
         json j = json{
             {"piece_id", b[i].piece_id},
             {"offset", b[i].offset},
             {"size", b[i].size},
         };
-        cout << "Sending requested piece " << piece.piece_id << "to peer :<< " << p->peer_id << endl;
+        cout << "Sending requested piece " << piece.piece_id << " to peer: " << p->peer_id << endl;
         sendMessage(Message{true, "request", j.dump()}, p->socket);
-       // (pm->downloader)(piece.piece_id, &b[i], p->socket);
         i++;
         // make logic for re-requesting
     }
@@ -451,7 +480,7 @@ void PeerManager::seeder()
         std::ostringstream filename;
         filename << "test/" << std::setw(3) << std::setfill('0') << index++ << ".tmp";
         string name = filename.str();
-        cout<<name<<endl;
+        cout << name << endl;
         ps->downloaded.push_back(name.substr(5));
         if (read_size > 0)
         {

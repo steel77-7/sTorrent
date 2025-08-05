@@ -34,7 +34,7 @@ public:
     PieceManager();
     bool initialPieceSelection();
     void rarest_piece_selection();
-    void downloader(string pieceid, block *block_info, int soc);
+    void downloader(string pieceid, block block_info, string data);
     void uploader();
     void assembler();
 };

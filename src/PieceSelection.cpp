@@ -5,9 +5,12 @@
 #include <chrono>
 using namespace std;
 
-std::mutex m ;
+int piece_size = 8192; 
+int block_length = piece_size/8;
+std::mutex m;
 void PieceManager::initialize_to_download(int num_pieces)
 {
+    //initialize the piece size as well
     std::lock_guard<std::mutex> init_lock(m);
     cout << "initialize downalad" << endl;
     to_download.clear();
@@ -18,7 +21,15 @@ void PieceManager::initialize_to_download(int num_pieces)
         Piece piece;
         piece.piece_id = string(buf);
         piece.status = "not_downloading";
+        int j =1; 
+        while(j<=8){
+            cout<<"adding blocks to pieces"<<endl;  
+            piece.blocks.push_back(block{piece.piece_id,1024*j,1024,"not_downloading"}); 
+            j++; 
+        }
         to_download.push_back(piece);
+        //pushing the pieces inside as well 
+
     }
 }
 
@@ -49,8 +60,9 @@ bool PieceManager::initialPieceSelection()
         uniform_int_distribution<> distrib(low, high - 1);
         int ran = distrib(gen);
         cout << "Piece to be downloaded : " << to_download[ran].piece_id << endl;
-        std::thread download_thread(&PeerManager::downloadHandler, p, to_download[ran], &PieceManager::downloader, this);
-        download_thread.detach(); // Detach thread to run independently
+        // std::thread download_thread(&PeerManager::downloadHandler, p, to_download[ran]);
+        // download_thread.detach(); // Detach thread to run independently
+        p->downloadHandler(to_download[ran]);
         // tw::what if the
         to_download.erase(to_download.begin() + ran);
     }
@@ -93,7 +105,9 @@ void PieceManager::rarest_piece_selection() // depedning upono the rearest fist
         int download_index = find_index(to_download, p_ids[index]);
         cout << "Piece to be downloaded : " << to_download[download_index].piece_id << endl;
         if (download_index != -1)
-            p->downloadHandler(to_download[download_index], &PieceManager::downloader, this);
+            //   p->downloadHandler(to_download[download_index], &PieceManager::downloader, this);
+            p->downloadHandler(to_download[download_index]);
+
         to_download.erase(to_download.begin() + download_index);
     }
 }
@@ -108,17 +122,17 @@ void PieceManager::assembler()
          if a piece has downaloded then do it
     */
 }
-void PieceManager::downloader(string pieceid, block *block_info, int soc)
+void PieceManager::downloader(string pieceid, block block_info, string data)
 {
 
     // make a file first
     cout << "Download started for file : " << pieceid << endl;
-    fstream outPutFile("down"+pieceid + ".tmp", ios::binary);
-    int lenght_of_block = block_info->size;
+    fstream outPutFile("down" + pieceid + ".tmp", ios::binary);
+    int lenght_of_block = block_info.size;
     int chunk_size = 1024;
     int downloaded_files = 0;
     char buffer[1024] = {0};
-    int offset = block_info->offset;
+    int offset = block_info.offset;
     chrono::milliseconds interval;
     // recieve
     // this for for one piece
@@ -128,12 +142,13 @@ void PieceManager::downloader(string pieceid, block *block_info, int soc)
     {
 
         auto start = chrono::high_resolution_clock::now();
-        int size_of_chunk = read(soc, buffer, sizeof(buffer));
+        //   int size_of_chunk = read(soc, buffer, sizeof(buffer));
+        int size_of_chunk = data.size();
         auto finish = chrono::high_resolution_clock::now();
         interval = chrono::duration_cast<chrono::milliseconds>(finish - start);
         // fwrite(buffer , size_of_block, &outPutFile);
         outPutFile.seekp(offset);
-        outPutFile.write(buffer, size_of_chunk);
+        outPutFile.write(data.c_str(), size_of_chunk);
         offset += chunk_size;
         downloaded_files += size_of_chunk;
     }
@@ -171,8 +186,4 @@ void PieceManager::downloader(string pieceid, block *block_info, int soc)
     in blocks
     chunks
     */
-}
-
-void PieceManager::save_file(){ 
-    
 }

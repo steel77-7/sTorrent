@@ -52,7 +52,9 @@ public:
     peerInfo* get_peer(string peer_id);
     void message_handler( string peer_id);
     void sendMessage(Message m, int soc);
-    void downloadHandler(Piece piece, void (PieceManager::*downloader)(std::string, block *, int), PieceManager *pm);
+   // void downloadHandler(Piece piece, void (PieceManager::*downloader)(std::string, block *, int), PieceManager *pm);
+    void downloadHandler(Piece piece);
+
     void chokingManager(string peer_id);//on each peer 
     void data_poll(); //will check if data is being recieved or not if not then new peer will be searched for downaloding the data
 
