@@ -21,9 +21,9 @@ void PieceManager::initialize_to_download(int num_pieces)
         Piece piece;
         piece.piece_id = string(buf);
         piece.status = "not_downloading";
-        int j =1; 
-        while(j<=8){
-            cout<<"adding blocks to pieces"<<endl;  
+        int j =0; 
+        while(j<8){
+          //  cout<<"adding blocks to pieces"<<endl;  
             piece.blocks.push_back(block{piece.piece_id,1024*j,1024,"not_downloading"}); 
             j++; 
         }
@@ -126,8 +126,15 @@ void PieceManager::downloader(string pieceid, block block_info, string data)
 {
 
     // make a file first
+    cout<<"Data : "<<data<<endl ; 
     cout << "Download started for file : " << pieceid << endl;
-    fstream outPutFile("down" + pieceid + ".tmp", ios::binary);
+    string filename = "down/" + pieceid + ".tmp";
+    ofstream outPutFile(filename, ios::binary | ios::out | ios::trunc);
+    if (!outPutFile)
+    {
+        cerr << "Error creating file : " << filename << endl;
+        exit(1);
+    }
     int lenght_of_block = block_info.size;
     int chunk_size = 1024;
     int downloaded_files = 0;

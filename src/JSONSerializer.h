@@ -29,9 +29,11 @@ struct peerInfo
     string peer_id;
     int port;
     bool choked;
-    vector<string> pieces_hash;
+   // vector<string> pieces_hash;
     int socket;
+    bool connected ;
     // string event;
+    
 };
 
 struct Message

@@ -12,6 +12,8 @@
 #include <vector>
 #include <thread>
 #include <set>
+#include <cerrno>
+#include <errno.h>
 #include <mutex>
 #include <openssl/sha.h>
 #include <unordered_map>

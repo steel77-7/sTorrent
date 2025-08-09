@@ -6,6 +6,7 @@
 #include <thread>
 #include <string.h>
 #include <cstdlib>
+#include <signal.h>
 #include "json.hpp"
 #include "Peer_id_gen.cpp"
 #include "PeerJoinEventHandler.cpp"
@@ -31,9 +32,18 @@ string self_info_hash = "the_super_secret_hash";
 
 bool isPeerKnown(const vector<peerInfo> &knownPeers, const peerInfo &peer)
 {
-    return std::any_of(knownPeers.begin(), knownPeers.end(),
-                       [&](const peerInfo &p)
-                       { return p.peer_id == peer.peer_id; });
+    try
+    {
+
+        return std::any_of(knownPeers.begin(), knownPeers.end(),
+                           [&](const peerInfo &p)
+                           { return p.peer_id == peer.peer_id; });
+    }
+    catch (exception &e)
+    {
+        cerr << "exception in is knonw peer :" << e.what() << endl;
+        return false; 
+    }
 }
 
 vector<peerInfo> peers;
@@ -45,7 +55,7 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
         if (j["type"] == "join")
         {
             // tw::the peer list alaways renews ....fix it
-            cout<<j["message"]<<endl;
+            cout << j["message"] << endl;
             string str_mess = j["message"];
             cout << "size of the strimg" << str_mess.size() << endl;
             json mess = json::parse(str_mess);
@@ -61,7 +71,7 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
 
                     std::thread t2([&]()
                                    { send_request_event->emit(peer); });
-                  //  cout << "exited the listner for now" << endl;
+                    //  cout << "exited the listner for now" << endl;
                     t1.detach();
                     t2.detach();
                 }
@@ -74,8 +84,7 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
     }
 }
 
-
-//this is just the event listenener for the tracker 
+// this is just the event listenener for the tracker
 void read_message(int self_soc, Event *add_peer_event, Event *send_request_event)
 {
     cout << "read messgae" << endl;
@@ -94,7 +103,7 @@ void read_message(int self_soc, Event *add_peer_event, Event *send_request_event
     }
 }
 
-//for the tracker messages
+// for the tracker messages
 void sendMessage(int s_socket, Message message)
 {
     json j = json{
@@ -140,7 +149,7 @@ int main(int argc, char *argv[])
     }
     int opt = 1;
     setsockopt(soc, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
+    signal(SIGPIPE, SIG_IGN);
     // conneting ot the server
     int n = connect(soc, (sockaddr *)&address, address_len);
     if (n < 0)
