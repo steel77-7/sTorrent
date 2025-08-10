@@ -42,7 +42,7 @@ bool isPeerKnown(const vector<peerInfo> &knownPeers, const peerInfo &peer)
     catch (exception &e)
     {
         cerr << "exception in is knonw peer :" << e.what() << endl;
-        return false; 
+        return false;
     }
 }
 
@@ -78,9 +78,21 @@ void messageSerializer(string s, Event *add_peer_event, Event *send_request_even
             }
         }
     }
-    catch (exception &ex)
+   /*  catch (exception &ex)
     {
         cout << "exception occured in the message serializer: " << ex.what() << endl;
+    } */
+    catch (json::parse_error &e)
+    {
+        std::cerr << "Parse error: " << e.what() << "\n";
+    }
+    catch (json::type_error &e)
+    {
+        std::cerr << "Type error: " << e.what() << "\n";
+    }
+    catch (json::out_of_range &e)
+    {
+        std::cerr << "Out of range: " << e.what() << "\n";
     }
 }
 

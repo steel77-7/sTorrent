@@ -147,7 +147,7 @@ void PieceManager::downloader(string pieceid, block block_info, string data)
     // a tree type structure ??
     while (downloaded_files < lenght_of_block)
     {
-
+        cout<<"Data in the downloader: "<<data<<endl; 
         auto start = chrono::high_resolution_clock::now();
         //   int size_of_chunk = read(soc, buffer, sizeof(buffer));
         int size_of_chunk = data.size();
@@ -161,7 +161,7 @@ void PieceManager::downloader(string pieceid, block block_info, string data)
     }
     // do somethign with this
 
-    double speed = sizeof(buffer) / interval.count();
+  //  double speed = sizeof(buffer) / interval.count();
     downloaded.push_back(pieceid);
     /*     json j = json{
             {"type", "download"},
